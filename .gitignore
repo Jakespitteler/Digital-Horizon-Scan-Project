@@ -8,5 +8,8 @@ wheels/
 
 *.log
 
+# Secrets file
+*.env
+
 # Virtual environments
 .venv
