@@ -19,27 +19,31 @@ TODOs are marked below — see README
 from __future__ import annotations
 
 import json
+import os
 import smtplib
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
 # settings
-# TODO: move these out of source before we hand anything over.
-#       SMTP password especially must not end up in git.
+# All from the environment, so no passwords in git. Copy .env.example to .env
+# and export it before running (see README). Defaults are example.com so the
+# demo works with no setup.
 
-SITE_NAME = "example.edu.au"
-CLIENT_TO = ["client@example.com"]
-FROM_ADDR = "sitewatch@example.com"
+SITE_NAME = os.environ.get("SITE_NAME", "example.edu.au")
+CLIENT_TO = [a.strip() for a in os.environ.get("CLIENT_TO", "client@example.com").split(",") if a.strip()]
+FROM_ADDR = os.environ.get("FROM_ADDR", "sitewatch@example.com")
 HEARTBEAT_DAYS = 7
 # The daily job never fires at exactly the same second, so "7 days since the
 # last email" would fail by a few seconds and slip to day 8. Allow a margin.
 HEARTBEAT_SLACK_HOURS = 12
 
-SMTP_HOST = "smtp.example.com"
-SMTP_PORT = 587
-SMTP_USER = ""
-SMTP_PASS = ""
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.example.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+# EMAIL / EMAIL_PASSWORD are the names already used in .env.example.
+SMTP_USER = os.environ.get("EMAIL", "")
+SMTP_PASS = os.environ.get("EMAIL_PASSWORD", "")
 
 # Event types the scraper is allowed to write.
 EVENT_TYPES = [
@@ -60,6 +64,14 @@ SECTIONS = [
     ("PAGE_REMOVED", "Pages no longer reachable"),
     ("FILE_REMOVED", "Files no longer reachable"),
 ]
+
+# Keep the two lists in step. Mark every event as notified but only print
+# the types in SECTIONS, so a type with no section vanishes from the email and
+# never comes back. Better to blow up on import than lose changes quietly.
+_missing = set(EVENT_TYPES) ^ {t for t, _ in SECTIONS}
+if _missing:
+    raise RuntimeError(f"EVENT_TYPES and SECTIONS disagree about: {sorted(_missing)}")
+del _missing
 
 
 # storage 
@@ -90,12 +102,11 @@ CREATE TABLE IF NOT EXISTS state (
 
 
 def connect(path="sitewatch.db"):
-    """Open the database, creating the tables if they aren't there yet.
+    """Open the db, making the tables if they're not there. Fine to call every run.
 
-    Safe to call on every run — SCHEMA is all CREATE TABLE IF NOT EXISTS.
-    isolation_level=None puts sqlite3 in autocommit mode, so nothing here
-    needs an explicit conn.commit(). Rows come back as sqlite3.Row, which is
-    why the rest of the file indexes them by name (row["type"]).
+    Autocommit is on, so single writes need no commit()
+    (use _transaction() for anything multi-step), and rows come back as
+    sqlite3.Row -- that's why we index them by name, e.g. row["type"].
     """
     conn = sqlite3.connect(path, isolation_level=None)
     conn.row_factory = sqlite3.Row
@@ -103,18 +114,35 @@ def connect(path="sitewatch.db"):
     return conn
 
 
-def get_state(conn, key):
-    """Read one value from the `state` table, or None if was never set.
+@contextmanager
+def _transaction(conn):
+    """All-or-nothing for a group of writes.
 
-    `state` is value that survives between runs.
-    Two keys are used: "baseline_done" and "last_email_at".
+    Sending is three steps, queue the email, mark the events, move the clock.
+    this stopes Crash after step one where the digest sits in the outbox with its events
+    still pending -- next run sends the it all again.
+    """
+    conn.execute("BEGIN")
+    try:
+        yield
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    conn.execute("COMMIT")
+
+
+def get_state(conn, key):
+    """Read a `state` value, or None if never set.
+
+    `state` is kept between runs. Only two keys in it:
+    "baseline_done" and "last_email_at".
     """
     row = conn.execute("SELECT value FROM state WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
 
 
 def set_state(conn, key, value):
-    """Write a `state` value, inserting or overwriting as needed."""
+    """Write a `state` value -- inserts, or overwrites if the key's there."""
     conn.execute(
         "INSERT INTO state(key, value) VALUES(?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -123,17 +151,15 @@ def set_state(conn, key, value):
 
 
 def add_event(conn, type_, url, detail=None, detected_at=None):
-    """The scraper calls this.
+    """The scraper calls this -- one row per change it finds.
 
-    Records one detected change. `type_` must be one of EVENT_TYPES —
-    anything else is a typo in the scraper and raises rather than silently
-    creating an event nobody renders. `detail` is an optional dict of extras
-    (e.g. {"title": ...} or {"filename": ...}) that render_digest uses for a
-    friendlier label; it's stored as JSON text. `detected_at` defaults to now
-    and is only passed in by tests/demo that need to fake the clock.
+    `type_` has to be in EVENT_TYPES; anything else is a typo, so raise
+    rather than store an event nobody prints. `detail` is optional extras
+    like {"title": ...} or {"filename": ...}, stored as JSON and used for a
+    nicer label in the email. `detected_at` is only for tests/demo faking
+    the clock.
 
-    The row lands with notified_at NULL, which is what marks it as pending
-    for the next run_notification_cycle().
+    Row goes in with notified_at NULL that's what "pending" means.
     """
     if type_ not in EVENT_TYPES:
         raise ValueError(f"unknown event type: {type_}")
@@ -151,22 +177,15 @@ def add_event(conn, type_, url, detail=None, detected_at=None):
 #  deciding what to send 
 
 def run_notification_cycle(conn, now=None):
-    """Call once at the end of each scraper run. Returns what it decided.
+    """Call once at the end of each scraper run. The main logic lives here.
 
-    Decides *what* to send and queues it in `outbox`; it does not talk to
-    SMTP. send_pending() does the actual sending, so a slow or broken mail
-    server can't stop us recording what changed.
+    Only picks what to send and drops it in `outbox` no SMTP, that's
+    send_pending(). So a dead mail server can't stop us recording changes.
 
-    NOT crash-safe yet. connect() uses autocommit, so the queue / mark /
-    set_state trio below are three separate commits. Dying between the first
-    two leaves the digest in the outbox *and* the events still pending, and
-    the next run emails the same changes a second time. Wrapping the three
-    in one BEGIN..COMMIT fixes it — see README.
+    Returns "baseline" | "digest" | "all_clear" | "nothing", mainly for
+    logging (demo.py prints it). Pass `now` to fake the clock in tests.
 
-    Returns one of "baseline" | "digest" | "all_clear" | "nothing", mostly so
-    the caller can log it (demo.py prints it).
-
-    `now` is injectable so tests/demo can pretend a week has passed.
+    Every branch writes inside _transaction() -- see the note there for why.
     """
     now = now or datetime.now(timezone.utc)
     pending = conn.execute(
@@ -177,41 +196,43 @@ def run_notification_cycle(conn, now=None):
     # point and send nothing. Otherwise the client gets 200 "new page" emails
     # on day one.
     if get_state(conn, "baseline_done") != "1":
-        _mark_notified(conn, pending, now)
-        set_state(conn, "baseline_done", "1")
-        set_state(conn, "last_email_at", now.isoformat())
+        with _transaction(conn):
+            _mark_notified(conn, pending, now)
+            set_state(conn, "baseline_done", "1")
+            set_state(conn, "last_email_at", now.isoformat())
         return "baseline"
 
-    # Because we run once a day, everything found in a run goes out as one
-    # email and there's no need to rate limit. If the schedule ever changes
-    # to hourly, revisit this — it would need a minimum gap between digests.
+    # Because it runs once a day, everything found in a run goes out as one
+    # email and there's no need to rate limit.
 
     # TODO (safety net): if most checks failed the site is probably just down,
-    # and "every page was deleted" is the wrong conclusion to email anyone.
+    # and "every page was deleted" is the wrong conclusion to email.
     # Needs the scraper to tell us how many checks passed/failed per run.
 
     if pending:
         subject, body = render_digest(pending, now)
-        _queue(conn, subject, body, now)
-        _mark_notified(conn, pending, now)
-        set_state(conn, "last_email_at", now.isoformat())
+        with _transaction(conn):
+            _queue(conn, subject, body, now)
+            _mark_notified(conn, pending, now)
+            set_state(conn, "last_email_at", now.isoformat())
         return "digest"
 
-    # Nothing changed. check for if been a week
-    # Any email resets the clock, so a change on Tuesday pushes the next possible all-clear out to the following Tuesday.
+    # Nothing changed see if it's been a week. Any email resets the clock,
+    # so a change on Tuesday pushes the next all-clear to the Tuesday after.
     last = get_state(conn, "last_email_at")
     due = timedelta(days=HEARTBEAT_DAYS, hours=-HEARTBEAT_SLACK_HOURS)
     if last and now - datetime.fromisoformat(last) >= due:
         subject, body = render_all_clear(now, datetime.fromisoformat(last))
-        _queue(conn, subject, body, now)
-        set_state(conn, "last_email_at", now.isoformat())
+        with _transaction(conn):
+            _queue(conn, subject, body, now)
+            set_state(conn, "last_email_at", now.isoformat())
         return "all_clear"
 
     return "nothing"
 
 
 def _queue(conn, subject, body, now):
-    """Put a finished email in the outbox with sent_at NULL (= still to send)."""
+    """Drop a finished email in the outbox. sent_at NULL = still to go out."""
     conn.execute(
         "INSERT INTO outbox(subject, body, created_at) VALUES(?,?,?)",
         (subject, body, now.isoformat()),
@@ -219,10 +240,10 @@ def _queue(conn, subject, body, now):
 
 
 def _mark_notified(conn, rows, now):
-    """Stamp notified_at on these events so they're never emailed twice.
+    """Stamp notified_at so these events don't get emailed again.
 
-    Builds a "?,?,?" placeholder list to match the number of ids — the ids
-    themselves are still bound as parameters, not formatted into the SQL.
+    The f-string only builds the "?,?,?" placeholders -- the ids are still
+    bound as params, so it's not an injection hole.
     """
     if not rows:
         return
@@ -235,20 +256,18 @@ def _mark_notified(conn, rows, now):
 
 
 #  writing the email 
-# TODO: plain text only for now. An HTML version would look better but the plain text part has to stay either way some corporate mail clients make a mess of HTML-only email.
+# TODO: plain text only for now. HTML would look nicer, but we keep the plain
+# text part regardless -- some corporate mail clients mangle HTML-only email.
 
 
 def render_digest(rows, now):
-    """Build the (subject, body) for a "here's what changed" email.
+    """Build (subject, body) for " what changed" email.
 
-    Groups the pending events by type and prints them in SECTIONS order, so
-    the things the client cares about most come first and empty categories
-    are skipped. Each item shows a human label — the title/filename out of
-    `detail` if the scraper gave us one, otherwise just the URL — with the
-    URL underneath.
+    Buckets the events by type and prints them in SECTIONS order, skipping
+    empty ones. Each item shows the title/filename from `detail` if we got
+    one, else just the URL.
 
-    Pure function: no database, no sending. Handy to call directly when
-    you're tweaking the wording.
+    No db or network just call it directly when you're fiddling with wording.
     """
     n = len(rows)
     noun = "change" if n == 1 else "changes"
@@ -282,11 +301,10 @@ def render_digest(rows, now):
 
 
 def render_all_clear(now, since):
-    """Build the (subject, body) for the weekly "nothing changed" note.
+    """Build (subject, body) for the weekly "nothing changed" note.
 
-    `since` is the timestamp of the last email we sent, so the body can name
-    the window it's covering. This exists so silence never looks the same as
-    a broken scraper — the client hears from us at least every HEARTBEAT_DAYS.
+    `since` is when last emailed, so the body can name the window. Point
+    of this one: silence shouldn't look the same as a broken scraper.
     """
     subject = f"[{SITE_NAME}] No changes detected - week to {now:%d %b %Y}"
     body = "\n".join(
@@ -309,16 +327,16 @@ def render_all_clear(now, since):
 def send_pending(conn, now=None, dry_run=False):
     """Send everything in the outbox. Returns how many went out.
 
-    Walks the unsent rows oldest first, builds an EmailMessage from each and
-    hands it to SMTP, then stamps sent_at so it won't go out again. A row is
-    only stamped after a successful send: if one message fails we log it,
-    leave it unsent and carry on with the rest, and next run picks it up.
+    Send oldest first
 
-    dry_run=True prints the messages instead of connecting to a mail server
-    — that's what demo.py passes.
+    Stamp sent_at *after* SMTP takes it, on purpose, crash in between and
+    that one email goes twice, but the other way round we'd lose it and
+    never know, i think better to double up than never send. 
 
-    Auto-Submitted: auto-generated tells other mail systems this is a robot,
-    so they don't reply or fire an out-of-office back at us.
+    dry_run=True just prints the messages, no mail server. demo.py uses it.
+
+    The Auto-Submitted header tells other mail systems we're a bot, so we
+    don't get out-of-office replies bouncing back.
 
     TODO: no retries yet. If SMTP is down the row stays unsent and we try
     again next run, which is fine, but it'll retry every 15 minutes forever
