@@ -47,10 +47,8 @@ def extract_links(
     if not parsed_base.netloc:
         raise ValueError(f"Invalid base_url provided: {base_url}")
 
-    soup = BeautifulSoup(html_content, "html.parser")
     links: set[str] = set()
-
-    for tag in soup.find_all("a", href=True):
+    for tag in BeautifulSoup(html_content, "html.parser").find_all("a", href=True):
         href: str = str(tag["href"]).strip()
 
         # Skip non-navigational or empty links
