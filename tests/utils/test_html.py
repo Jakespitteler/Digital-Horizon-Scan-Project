@@ -5,8 +5,8 @@ from httpx import AsyncClient, ConnectError, HTTPStatusError, MockTransport, Req
 
 from src.utils.html import extract_links, fetch_content_from_url
 
-TEST_URL = "https://example.com"
-SAMPLE_HTML = """
+TEST_URL: str = "https://example.com"
+SAMPLE_HTML: str = """
 <html>
     <body>
         <a href="/about">About Us</a>
@@ -60,9 +60,9 @@ async def test_fetch_content_from_url_request_error() -> None:
             await fetch_content_from_url(client, url=TEST_URL)
 
 
-def test_extract_links_basic_and_relative():
+def test_extract_links_basic_and_relative() -> None:
     """Test standard absolute, relative links, alphabetical sorting, and uniqueness."""
-    html = """
+    html: str = """
     <html>
         <body>
             <a href="https://example.com/about">About</a>
@@ -72,10 +72,10 @@ def test_extract_links_basic_and_relative():
         </body>
     </html>
     """
-    base_url = "https://example.com/index.html"
-    result = extract_links(html, base_url, internal_only=False)
+    base_url: str = "https://example.com/index.html"
+    result: list[str] = extract_links(html, base_url, internal_only=False)
 
-    expected = [
+    expected: list[str] = [
         "https://example.com/about",
         "https://example.com/contact",
         "https://example.com/services",
@@ -83,9 +83,9 @@ def test_extract_links_basic_and_relative():
     assert result == expected
 
 
-def test_extract_links_internal_only():
+def test_extract_links_internal_only() -> None:
     """Test filtering for internal links only when internal_only=True."""
-    html = """
+    html: str = """
     <html>
         <body>
             <a href="/internal-page">Internal Relative</a>
@@ -94,19 +94,19 @@ def test_extract_links_internal_only():
         </body>
     </html>
     """
-    base_url = "https://example.com/index.html"
-    result = extract_links(html, base_url, internal_only=True)
+    base_url: str = "https://example.com/index.html"
+    result: list[str] = extract_links(html, base_url, internal_only=True)
 
-    expected = [
+    expected: list[str] = [
         "https://example.com/another-internal",
         "https://example.com/internal-page",
     ]
     assert result == expected
 
 
-def test_extract_links_skips_non_navigational():
+def test_extract_links_skips_non_navigational() -> None:
     """Test that empty strings, hash anchors, javascript, mailto, and tel schemes are ignored."""
-    html = """
+    html: str = """
     <html>
         <body>
             <a href="">Empty</a>
@@ -118,16 +118,16 @@ def test_extract_links_skips_non_navigational():
         </body>
     </html>
     """
-    base_url = "https://example.com"
-    result = extract_links(html, base_url)
+    base_url: str = "https://example.com"
+    result: list[str] = extract_links(html, base_url)
 
-    expected = ["https://example.com/valid-page"]
+    expected: list[str] = ["https://example.com/valid-page"]
     assert result == expected
 
 
-def test_extract_links_fragment_stripping():
+def test_extract_links_fragment_stripping() -> None:
     """Test that URL fragments/anchors are stripped and duplicates are consolidated."""
-    html = """
+    html: str = """
     <html>
         <body>
             <a href="/page#section1">Section 1</a>
@@ -136,16 +136,16 @@ def test_extract_links_fragment_stripping():
         </body>
     </html>
     """
-    base_url = "https://example.com"
-    result = extract_links(html, base_url)
+    base_url: str = "https://example.com"
+    result: list[str] = extract_links(html, base_url)
 
     # All variations should collapse to the same clean URL and de-duplicate
-    expected = ["https://example.com/page"]
+    expected: list[str] = ["https://example.com/page"]
     assert result == expected
 
 
-def test_extract_links_invalid_base_url():
+def test_extract_links_invalid_base_url() -> None:
     """Test that ValueError is raised when base_url lacks a valid netloc/domain."""
-    html_with_invalid_url = '<a href="/page">Page</a>'
+    html_with_invalid_url: str = '<a href="/page">Page</a>'
     with pytest.raises(ValueError, match="Invalid base_url provided"):
         extract_links(html_with_invalid_url, "not-a-valid-url")
