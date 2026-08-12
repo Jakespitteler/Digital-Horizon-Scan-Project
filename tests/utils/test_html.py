@@ -91,6 +91,7 @@ def test_extract_links_internal_only() -> None:
             <a href="/internal-page">Internal Relative</a>
             <a href="https://example.com/another-internal">Internal Absolute</a>
             <a href="https://external.com/page">External Link</a>
+            <a href="/policy/policy.pdf""></a>
         </body>
     </html>
     """

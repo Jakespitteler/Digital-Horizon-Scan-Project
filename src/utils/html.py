@@ -1,7 +1,16 @@
+from pathlib import PurePosixPath
 from urllib.parse import ParseResult, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from httpx import AsyncClient, Response
+
+WEB_PAGE_EXTENSIONS = {"", ".html", ".htm", ".php", ".asp", ".aspx", ".jsp"}
+
+
+def _is_web_page(url: str) -> bool:
+    path: str = urlparse(url).path
+    suffix: str = PurePosixPath(path).suffix.lower()
+    return suffix in WEB_PAGE_EXTENSIONS
 
 
 async def fetch_content_from_url(client: AsyncClient, url: str) -> str:
@@ -60,7 +69,7 @@ def extract_links(
         parsed_url: ParseResult = urlparse(absolute_url)
 
         # Filter by internal domain if requested
-        if internal_only and parsed_url.netloc != parsed_base.netloc:
+        if internal_only and (not _is_web_page(absolute_url) or parsed_url.netloc != parsed_base.netloc):
             continue
 
         # Strip URL fragments (anchors like #section) for deduplication
