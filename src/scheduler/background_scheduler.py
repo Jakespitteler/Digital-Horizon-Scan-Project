@@ -16,8 +16,8 @@ async def run_loop(interval_seconds: int, task_function):
         await asyncio.sleep(interval_seconds)
 
 
-async def fake_task():
-    print("Policy check running...")
+#async def fake_task():
+    #print("Policy check running...")
 
 async def check_notifications():
     conn = notifier.connect()
@@ -33,9 +33,11 @@ async def main():
         notification_interval_seconds=10,
     )
 
-    await asyncio.gather(
-        run_loop(config.scrape_interval_seconds, fake_task),
-        run_loop(config.notification_interval_seconds, check_notifications),
+    #TO DO: Add the scraper loop here once the web scraper is implemented.
+
+    await run_loop(
+        config.notification_interval_seconds,
+        check_notifications,
     )
 
 
