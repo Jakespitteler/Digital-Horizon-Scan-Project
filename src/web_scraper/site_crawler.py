@@ -1,84 +1,111 @@
+import asyncio
 import logging
-from asyncio import Semaphore, gather
 from collections.abc import Awaitable, Iterator
 
-from httpx import AsyncClient, HTTPStatusError, RequestError
+import httpx
 
-from src.utils.html import extract_links, fetch_content_from_url
+from src.utils.html import extract_links, fetch_content_from_url, normalise_url
+from src.web_scraper.errors import TrafficError, WebConnectionError
 
 logger = logging.getLogger(__name__)
 
 
 async def fetch_and_extract(
-    client: AsyncClient,
+    client: httpx.AsyncClient,
     url: str,
-    base_url: str,
-    semaphore: Semaphore,
+    semaphore: asyncio.Semaphore,
+    delay: float | None = None,
 ) -> tuple[str, list[str]]:
     """Safely fetches HTML and extracts internal links under a concurrency limit.
 
     Args:
-        client (AsyncClient): the web client
-        url (str): the url to fetch and extract internal links from
-        base_url (str): The base url for resolving relative urls.
-        semaphore (Semaphore): The concurrency limiter
+        client (httpx.AsyncClient): the web client.
+        url (str): the url to fetch and extract internal links from.
+        semaphore (asyncio.Semaphore): The concurrency limiter.
+        delay (float): the time to wait in between before fetching content.
 
     Returns:
         tuple[str, list[str]]: (the url, all of the internal links on that page)
     """
     async with semaphore:
         try:
-            html: str = await fetch_content_from_url(client, url)  # TODO: remove logging every extraction
-            links: list[str] = extract_links(html, base_url, internal_only=True)
-            return url, links
-        except (HTTPStatusError, RequestError, Exception) as e:
-            # Gracefully ignore failing requests (404, 500, timeouts, bad HTML)
-            logger.warning(f"{url=} could not be reached. Raised: {e}")
+            if delay:
+                await asyncio.sleep(delay)
+            logger.debug(f"Fetching {url=}...")
+            html_content: str
+            html_content, absolute_url = await fetch_content_from_url(client, url)
+            links: list[str] = extract_links(absolute_url, html_content, internal_only=True)
+
+            logger.debug(f"Successfully extracted {len(links)} internal links from {url=}")
+            return absolute_url, links
+
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+
+            if status_code in {429, 502, 503, 504}:
+                raise TrafficError(url, status_code) from e
+            logger.warning(f"Skipping {url=} due to page-level HTTP error ({status_code}).")
+            return url, []
+
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
+            raise WebConnectionError(url) from e
+
+        except httpx.RequestError as e:
+            logger.warning(f"Skipping {url=} due to general request error. Raised: {e}")
+            return url, []
+
+        except Exception as e:
+            logger.warning(f"Skipping {url=} due to unexpected error. Raised: {e}")
             return url, []
 
 
 async def crawl_site(
-    client: AsyncClient,
-    base_url: str,
+    client: httpx.AsyncClient,
+    url: str,
     max_pages: int = 5000,
     max_concurrent: int = 10,
+    delay: float = 0,
 ) -> set[str]:
-    """Crawls a website asynchronously starting from base_url up to max_pages.
+    """Crawls a website asynchronously starting from url up to max_pages.
 
     Args:
-        client (httpx.AsyncClient): The web client
-        base_url (str): The website for the crawler to crawl
+        client (httpx.httpx.AsyncClient): The web client
+        url (str): The website for the crawler to extract links from.
         max_pages (int, optional): The limit on pages able to be visited before the crawler stops. Defaults to 5000.
-        max_concurrent (int, optional): The maximum amount of urls to visit concurrently. Defaults to 10.
+        max_concurrent (int, optional): The maximum amount of URLs to visit concurrently. Defaults to 10.
+        delay (float): The time to wait in between scraping URLs.
 
     Returns:
         set[str]: All internal links in the website
     """
-    semaphore = Semaphore(max_concurrent)
+    semaphore = asyncio.Semaphore(max_concurrent)
 
+    url = normalise_url(url)
     visited: set[str] = set()
-    queued: set[str] = {base_url}
-    queue: list[str] = [base_url]
+    queued: set[str] = {url}
+    queue: list[str] = [url]
 
     while queue and len(visited) < max_pages:
-        # TODO: log batches
+        logger.info(f"Queue size: {len(queue)} | Visited: {len(visited)}")
         batch_size: int = min(len(queue), max_pages - len(visited))
         batch: list[str] = queue[:batch_size]
         queue = queue[batch_size:]
 
         tasks: Iterator[Awaitable[tuple[str, list[str]]]] = (
-            fetch_and_extract(client, url, base_url, semaphore) for url in batch
+            fetch_and_extract(client, current_url, semaphore, delay) for current_url in batch
         )
-        batch_results: list[tuple[str, list[str]]] = await gather(*tasks)
+        batch_results: list[tuple[str, list[str]]] = await asyncio.gather(*tasks)
 
-        for url, new_links in batch_results:
-            visited.add(url)
-            for link in new_links:
+        for visited_url, internal_links in batch_results:
+            visited.add(normalise_url(visited_url))
+            for link in internal_links:
                 if link not in visited and link not in queued:
                     queued.add(link)
                     queue.append(link)
 
     if len(visited) >= max_pages:
-        logger.warning(f"Crawler exceeded the {max_pages=}, stopping crawler.")
+        logger.warning(f"Crawler exceeded the {max_pages=}, stopping crawler...")
+    else:
+        logger.info(f"Crawl completed. Exhausted all discoverable links. Total visited: {len(visited)}")
 
     return visited
