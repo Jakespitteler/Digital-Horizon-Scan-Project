@@ -119,7 +119,14 @@ def test_user(session: Session) -> DBUser:
 
 @pytest.fixture()
 def test_website(session: Session) -> DBWebsite:
-    return _create_and_add(session, record=DBWebsite(url="Test Website", internal_links=[], critical_pages=[]))
+    return _create_and_add(
+        session,
+        record=DBWebsite(
+            url="https://www.test_website.com",
+            internal_links=[],
+            critical_pages=[],
+        ),
+    )
 
 
 @pytest.fixture()
@@ -127,7 +134,7 @@ def test_critical_page(session: Session, test_website: DBWebsite) -> DBCriticalP
     return _create_and_add(
         session,
         record=DBCriticalPage(
-            url="Test Critical Page",
+            url=f"{test_website.url}/test_critical_page",
             links=[],
             documents=[],
             text_body="",
@@ -159,20 +166,20 @@ ROUTER_TEST_CONFIGS: list[RouterTestConfig] = [
     ),
     RouterTestConfig(
         prefix=routers.WEBSITE_ROUTER.prefix,
-        model_create=WebsiteCreate(url="Test Website", critical_pages=[], internal_links=[]),
-        model_update=WebsiteUpdate(url="Updated Website"),
+        model_create=WebsiteCreate(url="https://www.test_website.com", critical_pages=[], internal_links=[]),
+        model_update=WebsiteUpdate(url="https://www.updated_website.com"),
         test_fixture_name="test_website",
     ),
     RouterTestConfig(
         prefix=routers.CRITICAL_PAGE_ROUTER.prefix,
         model_create=CriticalPageCreate(
-            url="Test Critical Page",
+            url="https://www.test_website.com/test_critical_page",
             links=[],
             documents=[],
             text_body="",
             website_id=uuid.uuid4(),
         ),
-        model_update=CriticalPageUpdate(url="Updated Critical Page"),
+        model_update=CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page"),
         test_fixture_name="test_critical_page",
     ),
 ]

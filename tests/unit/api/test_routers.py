@@ -3,7 +3,7 @@ import uuid
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
-from src.db.core import Base
+from app.db.core import Base
 from tests.conftest import RouterTestConfig
 
 

@@ -2,13 +2,14 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.interfaces import ServiceModels
+from app.utils.field_types import URLString
+from app.utils.interfaces import ServiceModels
 
 
 class CriticalPageCreate(BaseModel):
-    url: str
-    links: list[str]
-    documents: list[str]
+    url: URLString
+    links: list[URLString]
+    documents: list[URLString]
     text_body: str
     website_id: uuid.UUID
 
@@ -16,17 +17,17 @@ class CriticalPageCreate(BaseModel):
 class CriticalPageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
-    url: str
-    links: list[str]
-    documents: list[str]
+    url: URLString
+    links: list[URLString]
+    documents: list[URLString]
     text_body: str
     website_id: uuid.UUID
 
 
 class CriticalPageUpdate(BaseModel):
-    url: str | None = None
-    links: list[str] | None = None
-    documents: list[str] | None = None
+    url: URLString | None = None
+    links: list[URLString] | None = None
+    documents: list[URLString] | None = None
     text_body: str | None = None
 
 

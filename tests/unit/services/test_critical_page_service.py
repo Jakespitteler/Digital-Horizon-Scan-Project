@@ -46,7 +46,7 @@ def test_create_critical_page(session: Session, test_website: DBWebsite) -> None
         session: The database session fixture.
     """
     critical_page_details = CriticalPageCreate(
-        url="CriticalPage",
+        url="https://www.test_website.com/test_critical_page",
         links=[],
         documents=[],
         text_body="",
@@ -69,7 +69,7 @@ def test_update_critical_page(session: Session, test_critical_page: DBCriticalPa
         session: The database session fixture.
         test_critical_page: The test critical page record.
     """
-    model_update = CriticalPageUpdate(url="Updated CriticalPage")
+    model_update = CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page")
 
     updated_critical_page: CriticalPageRead = CriticalPageService(session).update(
         id=test_critical_page.id, model_update=model_update

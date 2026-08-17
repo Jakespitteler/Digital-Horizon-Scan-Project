@@ -13,3 +13,9 @@ class CRUDFunctions[READ: BaseModel, CREATE: BaseModel, UPDATE: BaseModel](Proto
     def create(self, model_create: CREATE) -> READ: ...
     def update(self, id: uuid.UUID, model_update: UPDATE) -> READ: ...
     def delete(self, id: uuid.UUID) -> None: ...
+
+
+class ServiceModels[READ: BaseModel, CREATE: BaseModel, UPDATE: BaseModel](BaseModel):
+    model_read: type[READ]
+    model_create: type[CREATE]
+    model_update: type[UPDATE]

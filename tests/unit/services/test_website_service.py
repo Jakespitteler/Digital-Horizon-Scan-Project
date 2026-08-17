@@ -3,10 +3,10 @@ from collections.abc import Sequence
 import pytest
 from sqlalchemy.orm import Session
 
-from src.db.errors import NotFoundError
-from src.db.schema import DBWebsite
-from src.models.website import WebsiteCreate, WebsiteRead, WebsiteUpdate
-from src.services.website_service import WebsiteService
+from app.db.errors import NotFoundError
+from app.db.schema import DBWebsite
+from app.models.website import WebsiteCreate, WebsiteRead, WebsiteUpdate
+from app.services.website_service import WebsiteService
 
 
 def test_get_all_websites(session: Session, test_website: DBWebsite) -> None:
@@ -45,7 +45,7 @@ def test_create_website(session: Session) -> None:
     Args:
         session: The database session fixture.
     """
-    website_details = WebsiteCreate(url="Website", critical_pages=[], internal_links=[])
+    website_details = WebsiteCreate(url="https://www.test_website.com", critical_pages=[], internal_links=[])
 
     created_website: WebsiteRead = WebsiteService(session).create(website_details)
     assert created_website.id is not None
@@ -63,7 +63,7 @@ def test_update_website(session: Session, test_website: DBWebsite) -> None:
         session: The database session fixture.
         test_website: The test website record.
     """
-    model_update = WebsiteUpdate(url="Updated Website")
+    model_update = WebsiteUpdate(url="https://www.updated_website.com")
 
     updated_website: WebsiteRead = WebsiteService(session).update(id=test_website.id, model_update=model_update)
     assert updated_website.id == test_website.id

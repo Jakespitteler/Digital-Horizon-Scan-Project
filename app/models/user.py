@@ -2,7 +2,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.interfaces import ServiceModels
+from app.utils.interfaces import ServiceModels
 
 
 class UserCreate(BaseModel):

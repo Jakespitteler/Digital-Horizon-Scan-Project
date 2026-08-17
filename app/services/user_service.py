@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import repository
 from app.db.schema import DBUser
 from app.models.user import UserCreate, UserRead, UserUpdate
-from app.services.interfaces import CRUDFunctions
+from app.utils.interfaces import CRUDFunctions
 
 logger: logging.Logger = logging.getLogger(__name__)
 
