@@ -3,7 +3,7 @@ from collections.abc import Callable
 import pytest
 from httpx import AsyncClient, ConnectError, HTTPStatusError, MockTransport, Request, RequestError, Response
 
-from src.utils.html import extract_links, fetch_content_from_url
+from app.utils.html import extract_links, fetch_content_from_url
 
 TEST_URL: str = "https://example.com"
 SAMPLE_HTML: str = """
