@@ -119,7 +119,7 @@ These are marked in the code as well:
   Now it sends on the spot, and if that fails the diff finder has already moved
   its snapshot on, so tomorrow's run won't see those changes again and nobody
   is told. `notify()` returns `"failed"` for exactly this, but nothing acts on
-  it yet. Whoever owns persistence has to either hold the changes until the
+  it yet. Whoever does persistence has to either hold the changes until the
   send is confirmed, or park failures somewhere they can be retried — with an
   attempt counter and a backoff, so it doesn't retry forever in silence.
 - **Nothing remembers `last_email_at` yet.** The scheduler passes `None`, so
