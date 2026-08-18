@@ -43,6 +43,22 @@ and 19. Day 1 is silent because there is no previous run to compare against,
 so the diff finder reports nothing — otherwise the client gets 200 "new page"
 lines on the first morning.
 
+### run the scheduler
+
+```bash
+python src/scheduler/background_scheduler.py
+# or
+PYTHONPATH=src python -m scheduler.background_scheduler
+```
+
+`PYTHONPATH=src` is needed because `pyproject.toml` sets `packages = ["src"]`,
+which doesn't make `email_sender` and `scheduler` importable by those names.
+The scheduler works around it for the direct-script case; the proper fix is a
+change to `pyproject.toml`, which is shared with the scraper and database work.
+
+Ctrl-C stops it. A task that raises is logged and the loop carries on, so one
+bad run doesn't end monitoring.
+
 ### run tests
 
 ```bash
