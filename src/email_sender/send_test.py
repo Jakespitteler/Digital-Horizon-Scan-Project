@@ -14,8 +14,16 @@ Sends one digest with made up changes. Nothing is scraped and no state is kept
 
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
-import notifier
+try:
+    from email_sender import notifier
+except ImportError:
+    # Run as `python3 send_test.py` from inside this directory, sys.path[0] is
+    # this folder rather than src/, so the package name isn't importable. Add
+    # src/ and retry -- same guard as background_scheduler.py.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from email_sender import notifier
 
 # Before and after text for the sample content change, so the test email
 # actually shows the side by side diff rather than a bare "this page changed".

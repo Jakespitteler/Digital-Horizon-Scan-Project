@@ -30,10 +30,12 @@ import smtplib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid, parseaddr
 from html import escape, unescape
 from os import environ
 from pathlib import Path
 from typing import Literal, get_args
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # settings
 # All from the environment, so no passwords in git. Copy .env.example to .env
@@ -93,6 +95,27 @@ FROM_ADDR = environ.get("FROM_ADDR", "sitewatch@example.com")
 # Real sending is opt in. A run with no .env, or a fresh checkout, prints its
 # emails instead of mailing whatever CLIENT_TO happens to default to.
 DRY_RUN = _env_bool("DRY_RUN", True)
+
+# Times in the report are shown in the client's timezone, not UTC. The daily
+# run happening at 06:00 UTC is 14:00 in Perth, and a report headed "checked
+# 06:00" when the client reads it over lunch invites a support email.
+REPORT_TIMEZONE = environ.get("REPORT_TIMEZONE", "Australia/Perth")
+
+try:
+    _REPORT_TZ = ZoneInfo(REPORT_TIMEZONE)
+except (ZoneInfoNotFoundError, ValueError):
+    # A typo in .env shouldn't stop the client's report going out.
+    print(f"  unknown REPORT_TIMEZONE {REPORT_TIMEZONE!r}, falling back to UTC")
+    _REPORT_TZ = UTC
+
+
+def _local(when: datetime) -> datetime:
+    """The same instant, in the timezone the report is written for.
+
+    Display only. All the arithmetic stays in UTC, so a daylight saving jump
+    can't move the heartbeat window.
+    """
+    return when.astimezone(_REPORT_TZ)
 
 HEARTBEAT_DAYS = 7
 # The daily job never fires at exactly the same second, so "7 days since the
@@ -317,11 +340,12 @@ def render_digest(changes: list[Change], now: datetime) -> tuple[str, str]:
     """
     n = len(changes)
     noun = "change" if n == 1 else "changes"
-    subject = f"[{SITE_NAME}] {n} {noun} detected - {now:%d %b %Y}"
+    local = _local(now)
+    subject = f"[{SITE_NAME}] {n} {noun} detected - {local:%d %b %Y}"
 
     lines = [
         f"Website monitoring report for {SITE_NAME}",
-        f"Checked {now:%d %b %Y, %H:%M} UTC",  # TODO: show Perth time
+        f"Checked {local:%d %b %Y, %H:%M %Z}",
         "",
         f"{n} {noun} detected since the last report.",
         "",
@@ -413,7 +437,8 @@ def render_digest_html(changes: list[Change], now: datetime) -> str:
     out = [
         '<div style="font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#1f2328;max-width:900px">',
         f'<h2 style="margin:0 0 4px;font-size:18px">Website monitoring report for {escape(SITE_NAME)}</h2>',
-        f'<p style="margin:0 0 16px;color:#57606a;font-size:13px">Checked {now:%d %b %Y, %H:%M} UTC &middot; '
+        f'<p style="margin:0 0 16px;color:#57606a;font-size:13px">'
+        f"Checked {_local(now):%d %b %Y, %H:%M %Z} &middot; "
         f"{n} {noun} detected since the last report.</p>",
     ]
 
@@ -447,13 +472,15 @@ def render_all_clear(now: datetime, since: datetime) -> tuple[str, str]:
     `since` is when we last emailed, so the body can name the window. Point of
     this one: silence shouldn't look the same as a broken scraper.
     """
-    subject = f"[{SITE_NAME}] No changes detected - week to {now:%d %b %Y}"
+    local = _local(now)
+    since_local = _local(since)
+    subject = f"[{SITE_NAME}] No changes detected - week to {local:%d %b %Y}"
     body = "\n".join(
         [
             f"Website monitoring report for {SITE_NAME}",
-            f"Checked {now:%d %b %Y, %H:%M} UTC",
+            f"Checked {local:%d %b %Y, %H:%M %Z}",
             "",
-            f"No changes detected between {since:%d %b %Y} and {now:%d %b %Y}.",
+            f"No changes detected between {since_local:%d %b %Y} and {local:%d %b %Y}.",
             "",
             "Monitoring is running normally.",
             "",
@@ -463,7 +490,19 @@ def render_all_clear(now: datetime, since: datetime) -> tuple[str, str]:
     return subject, body
 
 
-def build_message(subject: str, body: str, html_body: str | None = None) -> EmailMessage:
+def _sender_domain() -> str | None:
+    """Domain of FROM_ADDR, for the Message-ID. None if it can't be read."""
+    _, address = parseaddr(FROM_ADDR)
+    _, _, domain = address.partition("@")
+    return domain or None
+
+
+def build_message(
+    subject: str,
+    body: str,
+    html_body: str | None = None,
+    now: datetime | None = None,
+) -> EmailMessage:
     """Wrap finished text in an email envelope. No sending.
 
     With `html_body` the result is multipart/alternative: clients that render
@@ -474,11 +513,18 @@ def build_message(subject: str, body: str, html_body: str | None = None) -> Emai
     The Auto-Submitted header tells other mail systems we're a bot, so we don't
     get out-of-office replies bouncing back.
     """
+    now = now or datetime.now(UTC)
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = FROM_ADDR
     msg["To"] = ", ".join(CLIENT_TO)
     msg["Auto-Submitted"] = "auto-generated"
+    # Date and Message-ID are not optional. RFC 5322 requires Date, and spam
+    # filters treat a missing Message-ID as a strong signal of a bulk sender --
+    # neither is added for us, so a report without them risks the junk folder.
+    # The Message-ID domain matches the sending address for the same reason.
+    msg["Date"] = formatdate(now.timestamp())
+    msg["Message-ID"] = make_msgid(domain=_sender_domain())
     msg.set_content(body)
     if html_body:
         msg.add_alternative(html_body, subtype="html")
@@ -557,5 +603,5 @@ def notify(
     else:
         return "nothing"
 
-    message = build_message(subject, body, html_body)
+    message = build_message(subject, body, html_body, now=now)
     return action if send_message(message, dry_run=dry_run) else "failed"

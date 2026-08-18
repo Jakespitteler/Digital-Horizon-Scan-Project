@@ -390,3 +390,62 @@ def test_the_all_clear_stays_plain_text(sent):
     notifier.notify([], now=NOW, last_email_at=NOW - timedelta(days=7))
 
     assert sent[0].get_content_type() == "text/plain"
+
+
+#  headers that decide whether the client ever sees the email
+
+def test_every_message_carries_a_date_and_message_id():
+    # RFC 5322 requires Date, and spam filters read a missing Message-ID as a
+    # bulk sender. Neither is added for us, so a report without them risks the
+    # junk folder -- which looks exactly like the scraper being broken.
+    msg = notifier.build_message("subject", "body", now=NOW)
+
+    assert msg["Date"], "no Date header"
+    assert msg["Message-ID"], "no Message-ID header"
+
+
+def test_the_date_header_matches_the_run_time():
+    msg = notifier.build_message("subject", "body", now=NOW)
+    assert "18 Aug 2026" not in msg["Date"]
+    assert "05 Aug 2026" in msg["Date"]
+
+
+def test_the_message_id_uses_the_sending_domain(monkeypatch):
+    # A Message-ID whose domain doesn't match the sender scores badly.
+    monkeypatch.setattr(notifier, "FROM_ADDR", "Scan <scan@horizon.example.org>")
+    msg = notifier.build_message("subject", "body", now=NOW)
+
+    assert msg["Message-ID"].endswith("@horizon.example.org>")
+
+
+def test_message_ids_are_unique_per_email():
+    a = notifier.build_message("s", "b", now=NOW)["Message-ID"]
+    b = notifier.build_message("s", "b", now=NOW)["Message-ID"]
+    assert a != b
+
+
+#  the client reads these in Perth, not UTC
+
+def test_times_are_shown_in_the_report_timezone():
+    # The 06:00 UTC run is 14:00 in Perth. A report headed 06:00 that the
+    # client reads over lunch invites a support email.
+    _, body = notifier.render_digest([change()], NOW)
+
+    assert "14:00 AWST" in body
+    assert "UTC" not in body
+
+
+def test_the_html_part_uses_the_same_local_time():
+    html = notifier.render_digest_html([change()], NOW)
+    assert "14:00 AWST" in html
+
+
+def test_the_all_clear_shows_local_times_too():
+    _, body = notifier.render_all_clear(NOW, NOW - timedelta(days=7))
+    assert "AWST" in body
+
+
+def test_heartbeat_arithmetic_stays_in_utc():
+    # Display converts to Perth; the maths must not, or a daylight saving jump
+    # somewhere would shift the weekly window.
+    assert timedelta(days=7) - timedelta(hours=12) == notifier.HEARTBEAT_DUE

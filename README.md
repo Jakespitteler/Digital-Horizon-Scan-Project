@@ -79,6 +79,15 @@ does, content changes email without a diff.
 Scraped page text is untrusted, so everything is HTML-escaped, and only
 `http`/`https` URLs are turned into clickable links.
 
+Times are shown in `REPORT_TIMEZONE` (default `Australia/Perth`), because the
+client reads them, not the server. The 06:00 UTC run shows as `14:00 AWST`.
+Display only — all the date arithmetic stays in UTC so a daylight saving jump
+can't shift the weekly heartbeat.
+
+Every message carries `Date` and `Message-ID` headers. Neither is added
+automatically, and mail without them scores badly with spam filters — a report
+in the junk folder looks exactly like a broken scraper.
+
 ### run the scheduler
 
 ```bash
@@ -180,7 +189,6 @@ These are marked in the code as well:
 - **Safety net for the site being down.** If most checks failed, "every page
   was deleted" is the wrong thing to email anyone. Needs the scraper to report
   how many checks passed and failed per run.
-- **Perth time.** Timestamps currently show UTC.
 - **Diff text from the scraper side.** `Change.old_text`/`new_text` drive the
   side by side comparison but nothing fills them in yet — see "Email format".
 - **Tests.** The notifier is covered in `tests/email_sender/test_notifier.py`.
