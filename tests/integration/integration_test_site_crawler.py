@@ -16,8 +16,8 @@ HEADERS = {
 }
 
 
-URL: str = "https://quotes.toscrape.com"
-# URL: str = "https://www.teqsa.gov.au/"
+# URL: str = "https://quotes.toscrape.com"
+URL: str = "https://www.teqsa.gov.au/"
 
 
 async def main() -> set[str]:

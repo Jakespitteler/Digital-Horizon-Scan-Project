@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Iterator
 
 import httpx
 
-from src.utils.html import extract_links, fetch_content_from_url, normalise_url
+from src.utils.html import extract_links, fetch_content_from_url, is_internal_web_page, normalise_url
 from src.web_scraper.errors import TrafficError, WebConnectionError
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,11 @@ async def fetch_and_extract(
             logger.debug(f"Fetching {url=}...")
             html_content: str
             html_content, absolute_url = await fetch_content_from_url(client, url)
+
+            # Ensure redirect was not to an external site
+            if not is_internal_web_page(url, check_url=absolute_url):
+                return url, []
+
             links: list[str] = extract_links(absolute_url, html_content, internal_only=True)
 
             logger.debug(f"Successfully extracted {len(links)} internal links from {url=}")

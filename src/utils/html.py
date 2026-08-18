@@ -24,6 +24,10 @@ def _is_web_page(url: str) -> bool:
     return suffix in WEB_PAGE_EXTENSIONS
 
 
+def is_internal_web_page(url: str, check_url: str) -> bool:
+    return _is_web_page(check_url) and urlparse(check_url).netloc == urlparse(url).netloc
+
+
 def normalise_url(url: str) -> str:
     """Normalises a URL by removing fragments and trailing slashes for deduplication.
 
@@ -94,7 +98,7 @@ def extract_links(
         absolute_url: str = urljoin(url, href)
 
         # Filter by internal domain if requested
-        if internal_only and (not _is_web_page(absolute_url) or urlparse(absolute_url).netloc != parsed_base.netloc):
+        if internal_only and not is_internal_web_page(url, check_url=absolute_url):
             continue
 
         links.add(normalise_url(absolute_url))
