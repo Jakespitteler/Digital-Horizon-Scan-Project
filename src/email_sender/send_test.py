@@ -17,11 +17,30 @@ from datetime import UTC, datetime
 
 import notifier
 
+# Before and after text for the sample content change, so the test email
+# actually shows the side by side diff rather than a bare "this page changed".
+_BEFORE = """Enrolment deadlines for Semester 2, 2026
+Applications close on 15 July 2026.
+Late applications may be considered at the discretion of the faculty.
+Students must complete the online form before the closing date.
+A late fee of $150 applies to applications received after the deadline.
+Contact the Student Centre for assistance."""
+
+_AFTER = """Enrolment deadlines for Semester 2, 2026
+Applications close on 1 August 2026.
+Late applications may be considered at the discretion of the faculty.
+Students must complete the online form before the closing date.
+A late fee of $220 applies to applications received after the deadline.
+Payment plans are available for students experiencing hardship.
+Contact the Student Centre for assistance."""
+
 SAMPLE = [
     notifier.Change(
         type="PAGE_CONTENT_CHANGED",
         url="https://example.edu.au/enrolment",
         label="Enrolment deadlines",
+        old_text=_BEFORE,
+        new_text=_AFTER,
     ),
     notifier.Change(
         type="FILE_ADDED",

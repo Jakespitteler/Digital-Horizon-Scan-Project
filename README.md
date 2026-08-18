@@ -43,6 +43,42 @@ and 19. Day 1 is silent because there is no previous run to compare against,
 so the diff finder reports nothing — otherwise the client gets 200 "new page"
 lines on the first morning.
 
+### Email format
+
+Reports go out as multipart email: an HTML part and a plain text part carrying
+the same information. Mail clients that render HTML show the HTML; anything
+else falls back to the text, which is why the text part is never dropped.
+
+For content changes the HTML part shows a **side by side before/after table**,
+with the specific words that changed marked in red on the left and green on
+the right. Only the differing parts are shown, plus two lines of unchanged text
+either side for context, and the whole thing is capped at
+`notifier.DIFF_MAX_ROWS` rows so one rewritten page can't produce an enormous
+email.
+
+Side by side needs two columns, and plain text only has about 78 characters to
+work with, so the text part stacks the same edits instead:
+
+```
+Watched pages changed (1)
+  * Enrolment deadlines
+    https://example.edu.au/enrolment
+      - Applications close on 15 July 2026.
+      + Applications close on 1 August 2026.
+      - A late fee of $150 applies after the deadline.
+      + A late fee of $220 applies after the deadline.
+```
+
+The diff is built from `Change.old_text` and `Change.new_text`. Both are
+optional — added and removed pages have nothing to compare, and a change that
+arrives without them still emails fine, just as a plain "this page changed"
+line. **Nothing populates them yet**: the diff finder holds both versions at
+the moment it decides a page changed, so it has to pass them through. Until it
+does, content changes email without a diff.
+
+Scraped page text is untrusted, so everything is HTML-escaped, and only
+`http`/`https` URLs are turned into clickable links.
+
 ### run the scheduler
 
 ```bash
@@ -145,7 +181,7 @@ These are marked in the code as well:
   was deleted" is the wrong thing to email anyone. Needs the scraper to report
   how many checks passed and failed per run.
 - **Perth time.** Timestamps currently show UTC.
-- **HTML email.** Plain text only for now. The plain text part has to stay
-  either way, as some corporate mail clients make a mess of HTML-only email.
+- **Diff text from the scraper side.** `Change.old_text`/`new_text` drive the
+  side by side comparison but nothing fills them in yet — see "Email format".
 - **Tests.** The notifier is covered in `tests/email_sender/test_notifier.py`.
   The scraper and diff finder still need theirs.

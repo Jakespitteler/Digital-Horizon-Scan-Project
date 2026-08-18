@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from email_sender import notifier
-from email_sender.notifier import Change
+from email_sender.notifier import Change, diff_rows
 
 NOW = datetime(2026, 8, 5, 6, 0, tzinfo=UTC)
 
@@ -235,3 +235,158 @@ class _FakeSMTP:
 
     def send_message(self, msg):
         type(self).sent.append(msg)
+
+
+#  side by side diffs for content changes
+
+OLD_PAGE = "Applications close on 15 July.\nA late fee of $150 applies.\nContact the Student Centre."
+NEW_PAGE = "Applications close on 1 August.\nA late fee of $150 applies.\nContact the Student Centre."
+
+
+def changed_page(old=OLD_PAGE, new=NEW_PAGE):
+    return Change(
+        type="PAGE_CONTENT_CHANGED",
+        url="https://uwa.edu.au/enrolment",
+        label="Enrolment deadlines",
+        old_text=old,
+        new_text=new,
+    )
+
+
+def test_a_change_without_text_has_no_diff():
+    # Added and removed pages have nothing to compare, and the diff finder
+    # isn't passing text through yet either. Both must still email fine.
+    assert change().has_diff is False
+    assert changed_page().has_diff is True
+
+
+def test_diff_rows_pairs_the_changed_line_side_by_side():
+    rows = diff_rows(OLD_PAGE, NEW_PAGE)
+    changed = [r for r in rows if r[0] == "changed"]
+
+    assert len(changed) == 1
+    _, left, right = changed[0]
+    assert "15 July" in left
+    assert "1 August" in right
+
+
+def test_diff_rows_marks_only_the_words_that_differ():
+    # Line level highlighting alone leaves the client hunting for the word.
+    _, left, right = next(r for r in diff_rows(OLD_PAGE, NEW_PAGE) if r[0] == "changed")
+
+    assert "<del" in left and "15 July" in left
+    assert "<ins" in right and "1 August" in right
+    # The unchanged part of the line must not be marked up.
+    assert "<del" not in left.split("<del")[0]
+    assert "Applications close on" in left
+
+
+def test_diff_rows_reports_added_and_removed_lines():
+    rows = diff_rows("one\ntwo", "one\ntwo\nthree")
+    assert any(kind == "added" and "three" in right for kind, _, right in rows)
+
+    rows = diff_rows("one\ntwo\nthree", "one\ntwo")
+    assert any(kind == "removed" and "three" in left for kind, left, _ in rows)
+
+
+def test_diff_rows_skips_long_unchanged_stretches():
+    old = "\n".join(["same"] * 30 + ["before"])
+    new = "\n".join(["same"] * 30 + ["after"])
+    rows = diff_rows(old, new)
+
+    assert any(kind == "skip" for kind, _, _ in rows)
+    assert len(rows) < 30, "the whole unchanged block was included"
+
+
+def test_diff_rows_are_capped_so_one_rewrite_cant_blow_up_the_email():
+    old = "\n".join(f"line {i}" for i in range(500))
+    new = "\n".join(f"changed {i}" for i in range(500))
+    rows = diff_rows(old, new)
+
+    assert len(rows) == notifier.DIFF_MAX_ROWS + 1
+    assert "more rows" in rows[-1][1]
+
+
+def test_blank_lines_do_not_count_as_changes():
+    # Scraped text is full of blank lines that move whenever markup is touched.
+    rows = diff_rows("one\n\n\ntwo", "one\ntwo")
+    assert all(kind == "equal" for kind, _, _ in rows)
+
+
+def test_a_whitespace_only_change_says_so_instead_of_showing_a_table():
+    html = notifier.render_digest_html([changed_page(old="one\n\n\ntwo", new="one\ntwo")], NOW)
+
+    assert "<table" not in html
+    assert "no visible difference" in html
+
+
+#  the html part
+
+def test_html_digest_contains_a_before_after_table():
+    html = notifier.render_digest_html([changed_page()], NOW)
+
+    assert "<table" in html
+    assert ">Before<" in html and ">After<" in html
+    assert "1 August" in html
+
+
+def test_html_digest_omits_the_table_when_there_is_no_text():
+    html = notifier.render_digest_html([change()], NOW)
+    assert "<table" not in html
+
+
+def test_html_escapes_scraped_page_text():
+    # Page text comes off a third party site. It must never become markup.
+    html = notifier.render_digest_html(
+        [changed_page(old="Fees are fine", new='Fees <script>alert("x")</script>')], NOW
+    )
+
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_html_escapes_the_label_and_url():
+    html = notifier.render_digest_html(
+        [Change(type="PAGE_ADDED", url="https://x.edu/?a=1&b=2", label="<b>bold</b>")], NOW
+    )
+
+    assert "<b>bold</b>" not in html
+    assert "&lt;b&gt;bold&lt;/b&gt;" in html
+    assert "&amp;b=2" in html
+
+
+def test_only_http_urls_become_clickable_links():
+    for url in ("javascript:alert(1)", "data:text/html,<script>x</script>"):
+        html = notifier.render_digest_html([Change(type="PAGE_ADDED", url=url)], NOW)
+        assert "href=" not in html, f"{url} should not be a link"
+
+    html = notifier.render_digest_html([Change(type="PAGE_ADDED", url="https://ok.edu/p")], NOW)
+    assert 'href="https://ok.edu/p"' in html
+
+
+#  the two parts together
+
+def test_the_text_part_stacks_the_same_edits():
+    # Side by side needs two columns; plain text has ~78 characters. The text
+    # part must still show what changed, just stacked.
+    _, body = notifier.render_digest([changed_page()], NOW)
+
+    assert "- Applications close on 15 July." in body
+    assert "+ Applications close on 1 August." in body
+    assert "<del" not in body, "html markup leaked into the text part"
+
+
+def test_a_digest_is_multipart_with_both_parts(sent):
+    notifier.notify([changed_page()], now=NOW)
+    msg = sent[0]
+
+    assert msg.get_content_type() == "multipart/alternative"
+    types = [p.get_content_type() for p in msg.walk()]
+    assert "text/plain" in types and "text/html" in types
+
+
+def test_the_all_clear_stays_plain_text(sent):
+    # Nothing changed means nothing to diff, so there's no reason for HTML.
+    notifier.notify([], now=NOW, last_email_at=NOW - timedelta(days=7))
+
+    assert sent[0].get_content_type() == "text/plain"

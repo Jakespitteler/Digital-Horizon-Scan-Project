@@ -24,10 +24,13 @@ TODOs are marked below - see README
 
 from __future__ import annotations
 
+import difflib
+import re
 import smtplib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from html import escape, unescape
 from os import environ
 from pathlib import Path
 from typing import Literal, get_args
@@ -148,20 +151,160 @@ class Change:
     Frozen because the notifier has no business editing what it was handed.
     A plain dataclass rather than a pydantic model on purpose: it keeps this
     module dependency free, so demo.py runs on a bare python with no install.
+
+    `old_text` and `new_text` are the page or document text before and after,
+    and are what the side by side diff in the email is built from. They are
+    optional: a page that was added or removed has nothing to compare, and a
+    change that arrives without them still emails fine, just without a diff.
+
+    TODO (diff finder): nothing populates old_text/new_text yet. The diff
+    finder has both versions in hand at the moment it decides a page changed,
+    so it is the one that has to pass them through. Until it does, content
+    changes email as a bare "this page changed" line.
     """
 
     type: ChangeType
     url: str
     label: str | None = None
+    old_text: str | None = None
+    new_text: str | None = None
 
     def __post_init__(self):
         if self.type not in get_args(ChangeType):
             raise ValueError(f"unknown change type: {self.type}")
 
+    @property
+    def has_diff(self) -> bool:
+        """Whether there's enough here to show a before/after comparison."""
+        return self.old_text is not None and self.new_text is not None
+
+
+#  working out what changed inside a page
+
+# A whole page is far too much to email. Show only the parts that differ, plus
+# a little unchanged text either side so the client can see where they sit.
+DIFF_CONTEXT_LINES = 2
+# Hard cap, so one rewritten page can't produce a megabyte long email.
+DIFF_MAX_ROWS = 40
+
+
+def _split_lines(text: str) -> list[str]:
+    """Page text into comparable lines, blank ones dropped.
+
+    Scraped text is full of blank lines that shift around whenever the markup
+    is touched. Keeping them makes the diff look enormous when almost nothing
+    has actually changed.
+    """
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def _mark_words(old_line: str, new_line: str) -> tuple[str, str]:
+    """Wrap the words that differ between two lines in <del>/<ins>. Returns HTML.
+
+    Line level highlighting alone tells the client "this line changed" and
+    leaves them hunting for the word. This points at it.
+    """
+    old_words = old_line.split()
+    new_words = new_line.split()
+    matcher = difflib.SequenceMatcher(None, old_words, new_words)
+
+    left, right = [], []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        old_part = escape(" ".join(old_words[i1:i2]))
+        new_part = escape(" ".join(new_words[j1:j2]))
+        if tag == "equal":
+            left.append(old_part)
+            right.append(new_part)
+            continue
+        if old_part:
+            left.append(f'<del style="background:#ffd7d5;text-decoration:none">{old_part}</del>')
+        if new_part:
+            right.append(f'<ins style="background:#ccffd8;text-decoration:none">{new_part}</ins>')
+
+    return " ".join(left), " ".join(right)
+
+
+def diff_rows(old_text: str, new_text: str, context: int = DIFF_CONTEXT_LINES) -> list[tuple[str, str, str]]:
+    """Side by side rows of (kind, left_html, right_html).
+
+    `kind` is "equal", "changed", "removed", "added" or "skip" -- "skip" being
+    the "... unchanged text ..." marker where a long identical stretch was cut
+    out. Escaping happens here, so callers can drop the result straight into a
+    table.
+
+    Truncated at DIFF_MAX_ROWS with a final row saying how much was left out.
+    """
+    old_lines = _split_lines(old_text)
+    new_lines = _split_lines(new_text)
+
+    rows: list[tuple[str, str, str]] = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old_lines, new_lines).get_opcodes():
+        if tag == "equal":
+            block = old_lines[i1:i2]
+            if len(block) <= context * 2:
+                keep = [(n, n) for n in block]
+                skipped = 0
+            else:
+                keep = [(n, n) for n in block[:context]]
+                skipped = len(block) - context * 2
+                keep += [(n, n) for n in block[-context:]]
+            for k, (left, right) in enumerate(keep):
+                if skipped and k == context:
+                    rows.append(("skip", f"... {skipped} unchanged lines ...", f"... {skipped} unchanged lines ..."))
+                rows.append(("equal", escape(left), escape(right)))
+            continue
+
+        if tag == "replace":
+            # Pair the lines up so the client reads before against after.
+            for left, right in zip(old_lines[i1:i2], new_lines[j1:j2], strict=False):
+                rows.append(("changed", *_mark_words(left, right)))
+            # Uneven blocks leave a tail on one side with nothing to pair to.
+            extra_old = old_lines[i1 + min(i2 - i1, j2 - j1) : i2]
+            extra_new = new_lines[j1 + min(i2 - i1, j2 - j1) : j2]
+            rows += [("removed", escape(line), "") for line in extra_old]
+            rows += [("added", "", escape(line)) for line in extra_new]
+        elif tag == "delete":
+            rows += [("removed", escape(line), "") for line in old_lines[i1:i2]]
+        elif tag == "insert":
+            rows += [("added", "", escape(line)) for line in new_lines[j1:j2]]
+
+    if len(rows) > DIFF_MAX_ROWS:
+        dropped = len(rows) - DIFF_MAX_ROWS
+        rows = rows[:DIFF_MAX_ROWS]
+        rows.append(("skip", f"... {dropped} more rows, see the page itself ...", ""))
+    return rows
+
 
 #  writing the email
 # TODO: plain text only for now. HTML would look nicer, but we keep the plain
 # text part regardless -- some corporate mail clients mangle HTML-only email.
+
+
+def _unified_lines(change: Change) -> list[str]:
+    """Before/after for the plain text part, stacked rather than side by side."""
+    if not change.has_diff:
+        return []
+
+    out = []
+    for kind, left, right in diff_rows(change.old_text, change.new_text):
+        if kind == "equal":
+            continue
+        if kind == "skip":
+            out.append(left)
+        elif kind == "changed":
+            out.append(f"- {_strip_tags(left)}")
+            out.append(f"+ {_strip_tags(right)}")
+        elif kind == "removed":
+            out.append(f"- {_strip_tags(left)}")
+        else:
+            out.append(f"+ {_strip_tags(right)}")
+    return out
+
+
+def _strip_tags(html_fragment: str) -> str:
+    """Undo the escaping and word marking diff_rows() did, for the text part."""
+    text = re.sub(r"<[^>]+>", "", html_fragment)
+    return unescape(text)
 
 
 def render_digest(changes: list[Change], now: datetime) -> tuple[str, str]:
@@ -196,10 +339,106 @@ def render_digest(changes: list[Change], now: datetime) -> tuple[str, str]:
         for change in items:
             lines.append(f"  * {change.label or change.url}")
             lines.append(f"    {change.url}")
+            # Side by side needs two columns and plain text only has ~78
+            # characters to play with, so the text part shows the same edits
+            # stacked instead. The HTML part carries the real comparison.
+            for line in _unified_lines(change):
+                lines.append(f"      {line}")
         lines.append("")
 
     lines.append("This is an automated message.")
     return subject, "\n".join(lines)
+
+
+# Inline styles throughout, not a <style> block: several mail clients strip
+# stylesheets out of the head, and Gmail's web client is one of them.
+_TD = "padding:6px 8px;vertical-align:top;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;width:50%"
+_ROW_BG = {"changed": "#fffbe6", "removed": "#ffeceb", "added": "#eaffee", "skip": "#f6f8fa", "equal": "#ffffff"}
+
+
+def _link(url: str) -> str:
+    """A clickable link for http(s) URLs, plain escaped text for anything else.
+
+    Page text and hrefs come off a third party website, so they're untrusted.
+    Everything gets escaped, and this additionally refuses to build an <a href>
+    around a `javascript:` or `data:` URL. The scraper filters those already;
+    this is the second lock on the same door.
+    """
+    safe = escape(url, quote=True)
+    if url.lower().startswith(("http://", "https://")):
+        return f'<a href="{safe}" style="color:#0969da;font-size:12px">{safe}</a>'
+    return f'<span style="color:#57606a;font-size:12px">{safe}</span>'
+
+
+def _diff_table(change: Change) -> str:
+    """The side by side before/after table for one changed page."""
+    rows = diff_rows(change.old_text, change.new_text)
+    # All "equal" means the only differences were blank lines or whitespace,
+    # which _split_lines drops. A table of identical rows helps nobody.
+    if not any(kind not in ("equal", "skip") for kind, _, _ in rows):
+        return '<p style="margin:4px 0;color:#57606a;font-size:13px">Text changed, but no visible difference.</p>'
+
+    cells = []
+    for kind, left, right in rows:
+        colour = "#57606a" if kind == "skip" else "#1f2328"
+        cells.append(
+            f'<tr style="background:{_ROW_BG[kind]}">'
+            f'<td style="{_TD};color:{colour};border-right:1px solid #d0d7de">{left}&nbsp;</td>'
+            f'<td style="{_TD};color:{colour}">{right}&nbsp;</td>'
+            f"</tr>"
+        )
+
+    return (
+        '<table role="presentation" cellspacing="0" cellpadding="0" '
+        'style="width:100%;max-width:100%;border-collapse:collapse;border:1px solid #d0d7de;margin:8px 0 18px">'
+        '<tr style="background:#f6f8fa">'
+        '<th style="{h};border-right:1px solid #d0d7de">Before</th>'
+        '<th style="{h}">After</th>'
+        "</tr>{rows}</table>"
+    ).format(
+        h="padding:6px 8px;text-align:left;font:600 12px/1.4 system-ui,sans-serif;color:#57606a",
+        rows="".join(cells),
+    )
+
+
+def render_digest_html(changes: list[Change], now: datetime) -> str:
+    """The HTML half of the digest -- same content as the plain text, plus diffs.
+
+    Sent alongside render_digest()'s text, never instead of it. Mail clients
+    that refuse HTML still get a readable report.
+    """
+    n = len(changes)
+    noun = "change" if n == 1 else "changes"
+
+    out = [
+        '<div style="font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#1f2328;max-width:900px">',
+        f'<h2 style="margin:0 0 4px;font-size:18px">Website monitoring report for {escape(SITE_NAME)}</h2>',
+        f'<p style="margin:0 0 16px;color:#57606a;font-size:13px">Checked {now:%d %b %Y, %H:%M} UTC &middot; '
+        f"{n} {noun} detected since the last report.</p>",
+    ]
+
+    by_type: dict[str, list[Change]] = {}
+    for change in changes:
+        by_type.setdefault(change.type, []).append(change)
+
+    for type_, heading in SECTIONS:
+        items = by_type.get(type_)
+        if not items:
+            continue
+        out.append(
+            f'<h3 style="margin:20px 0 8px;font-size:15px;border-bottom:1px solid #d0d7de;'
+            f'padding-bottom:4px">{escape(heading)} ({len(items)})</h3>'
+        )
+        for change in items:
+            label = escape(change.label or change.url)
+            out.append(
+                f'<p style="margin:10px 0 2px"><strong>{label}</strong><br>{_link(change.url)}</p>'
+            )
+            if change.has_diff:
+                out.append(_diff_table(change))
+
+    out.append('<p style="margin:24px 0 0;color:#57606a;font-size:12px">This is an automated message.</p></div>')
+    return "".join(out)
 
 
 def render_all_clear(now: datetime, since: datetime) -> tuple[str, str]:
@@ -224,8 +463,13 @@ def render_all_clear(now: datetime, since: datetime) -> tuple[str, str]:
     return subject, body
 
 
-def build_message(subject: str, body: str) -> EmailMessage:
+def build_message(subject: str, body: str, html_body: str | None = None) -> EmailMessage:
     """Wrap finished text in an email envelope. No sending.
+
+    With `html_body` the result is multipart/alternative: clients that render
+    HTML get the side by side diffs, and everything else falls back to `body`.
+    The text part is never dropped -- some corporate mail clients make a mess
+    of HTML-only email, and the client's might be one of them.
 
     The Auto-Submitted header tells other mail systems we're a bot, so we don't
     get out-of-office replies bouncing back.
@@ -236,6 +480,8 @@ def build_message(subject: str, body: str) -> EmailMessage:
     msg["To"] = ", ".join(CLIENT_TO)
     msg["Auto-Submitted"] = "auto-generated"
     msg.set_content(body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
     return msg
 
 
@@ -302,11 +548,14 @@ def notify(
 
     if changes:
         subject, body = render_digest(changes, now)
+        html_body = render_digest_html(changes, now)
         action = "digest"
     elif last_email_at is not None and now - last_email_at >= HEARTBEAT_DUE:
         subject, body = render_all_clear(now, last_email_at)
+        html_body = None
         action = "all_clear"
     else:
         return "nothing"
 
-    return action if send_message(build_message(subject, body), dry_run=dry_run) else "failed"
+    message = build_message(subject, body, html_body)
+    return action if send_message(message, dry_run=dry_run) else "failed"
