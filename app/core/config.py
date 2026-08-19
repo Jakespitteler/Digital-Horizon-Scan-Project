@@ -12,7 +12,7 @@ class Config(BaseSettings):
     email_password: SecretStr = SecretStr("")
     db_user: str = ""
     db_password: SecretStr = SecretStr("")
-    db_name: str = "test.db"
+    db_name: str = "digital_horizon.db"
 
     @property
     def db_url(self):

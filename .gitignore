@@ -13,4 +13,4 @@ wheels/
 
 # Virtual environments
 .venv
-test.db
+*.db
