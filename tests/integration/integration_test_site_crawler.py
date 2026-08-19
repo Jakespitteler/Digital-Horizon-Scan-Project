@@ -6,7 +6,7 @@ from time import perf_counter
 
 import httpx
 
-from src.web_scraper.site_crawler import crawl_site
+from app.web_scraper.site_crawler import crawl_site
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -16,7 +16,6 @@ HEADERS = {
 }
 
 
-# URL: str = "https://quotes.toscrape.com"
 URL: str = "https://www.teqsa.gov.au/"
 
 

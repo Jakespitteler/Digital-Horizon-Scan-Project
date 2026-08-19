@@ -4,8 +4,8 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from src.web_scraper.errors import TrafficError, WebConnectionError
-from src.web_scraper.site_crawler import crawl_site, fetch_and_extract
+from app.web_scraper.errors import TrafficError, WebConnectionError
+from app.web_scraper.site_crawler import crawl_site, fetch_and_extract
 from tests.conftest import RequestHandler
 
 # ========================
