@@ -1,122 +1,168 @@
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
-from httpx2 import Response
+from pydantic import BaseModel
 
+from app.api import routers
 from app.db.core import Base
-from tests.conftest import RouterTestConfig
+from app.models import critical_page_models, user_models, website_models
 
 
-def test_get_all_records(api_client: TestClient, router_test_config: RouterTestConfig) -> None:
+class TestCRUDRouters:
     """
-    Tests retrieving a list of records from an api router.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
+    Base test suite for standard Router operations.
+    Subclasses must define prefix, model_create, model_update, and fixture_name.
     """
-    response: Response = api_client.get(url=router_test_config.prefix)
-    assert response.status_code == 200, response.text
+
+    __test__ = False
+
+    prefix: str
+    model_create: BaseModel
+    model_update: BaseModel
+    fixture_name: str
+
+    @pytest.fixture
+    def api_record(self, request: pytest.FixtureRequest) -> Base:
+        """Dynamically fetches the database record fixture required by the subclass."""
+        return request.getfixturevalue(self.fixture_name)
+
+    def test_get_all_records(self, api_client: TestClient) -> None:
+        """
+        Tests retrieving a list of records from an api router.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+        """
+        response = api_client.get(url=self.prefix)
+        assert response.status_code == 200, response.text
+
+    def test_get_record(self, api_client: TestClient, api_record: Base) -> None:
+        """
+        Tests retrieving an existing record by its ID.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+            test_api_record: An existing record.
+        """
+        response = api_client.get(url=f"{self.prefix}/{api_record.id}")
+        assert response.status_code == 200, response.text
+
+    def test_get_record_not_found(self, api_client: TestClient) -> None:
+        """
+        Tests that retrieving a non-existent record returns a 404 status.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+        """
+        response = api_client.get(url=f"{self.prefix}/{uuid.uuid4()}")
+        assert response.status_code == 404, response.text
+
+    def test_create_record(self, api_client: TestClient) -> None:
+        """
+        Tests creating a new record.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+        """
+        response = api_client.post(
+            url=self.prefix,
+            json=self.model_create.model_dump(mode="json"),
+        )
+        assert response.status_code == 201, response.text
+
+    def test_update_record(self, api_client: TestClient, api_record: Base) -> None:
+        """
+        Tests updating an existing record's details.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+            test_api_record: An existing record.
+        """
+        response = api_client.patch(
+            url=f"{self.prefix}/{api_record.id}",
+            json=self.model_update.model_dump(exclude_unset=True),
+        )
+        assert response.status_code == 200, response.text
+
+    def test_update_record_not_found(self, api_client: TestClient) -> None:
+        """
+        Tests that updating a non-existent record returns a 404 status.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+        """
+        response = api_client.patch(
+            url=f"{self.prefix}/{uuid.uuid4()}",
+            json=self.model_update.model_dump(mode="json"),
+        )
+        assert response.status_code == 404, response.text
+
+    def test_delete_record(self, api_client: TestClient, api_record: Base) -> None:
+        """
+        Tests deleting an existing record.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+            test_api_record: An existing record.
+        """
+        response = api_client.delete(url=f"{self.prefix}/{api_record.id}")
+        assert response.status_code == 204, response.text
+
+        fetch_response = api_client.get(url=f"{self.prefix}/{api_record.id}")
+        assert fetch_response.status_code == 404
+
+    def test_delete_record_not_found(self, api_client: TestClient) -> None:
+        """
+        Tests that deleting a non-existent record returns a 404 status.
+
+        Args:
+            api_client: The FastAPI test client.
+            router_test_config: The router configuration.
+        """
+        response = api_client.delete(url=f"{self.prefix}/{uuid.uuid4()}")
+        assert response.status_code == 404, response.text
 
 
-def test_get_record(api_client: TestClient, router_test_config: RouterTestConfig, test_api_record: Base) -> None:
-    """
-    Tests retrieving an existing record by its ID.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-        test_api_record: An existing record.
-    """
-    response: Response = api_client.get(url=f"{router_test_config.prefix}/{test_api_record.id}")
-    assert response.status_code == 200, response.text
+# ==========================
+#  Test Implementations
+# ==========================
 
 
-def test_get_record_not_found(api_client: TestClient, router_test_config: RouterTestConfig) -> None:
-    """
-    Tests that retrieving a non-existent record returns a 404 status.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-    """
-    invalid_id: uuid.UUID = uuid.uuid4()
-    response: Response = api_client.get(url=f"{router_test_config.prefix}/{invalid_id}")
-    assert response.status_code == 404, response.text
+class TestUserRouter(TestCRUDRouters):
+    __test__ = True
+    prefix = routers.USER_ROUTER.prefix
+    model_create = user_models.UserCreate(name="Test User")
+    model_update = user_models.UserUpdate(name="Updated User")
+    fixture_name = "test_user"
 
 
-def test_create_record(api_client: TestClient, router_test_config: RouterTestConfig) -> None:
-    """
-    Tests creating a new record.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-    """
-    response: Response = api_client.post(
-        url=router_test_config.prefix,
-        json=router_test_config.model_create.model_dump(mode="json"),
+class TestWebsiteRouter(TestCRUDRouters):
+    __test__ = True
+    prefix = routers.WEBSITE_ROUTER.prefix
+    model_create = website_models.WebsiteCreate(
+        url="https://www.test_website.com", critical_pages=[], internal_links=[]
     )
-    assert response.status_code == 201, response.text
+    model_update = website_models.WebsiteUpdate(url="https://www.updated_website.com")
+    fixture_name = "test_website"
 
 
-def test_update_record(api_client: TestClient, router_test_config: RouterTestConfig, test_api_record: Base) -> None:
-    """
-    Tests updating an existing record's details.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-        test_api_record: An existing record.
-    """
-    response: Response = api_client.patch(
-        url=f"{router_test_config.prefix}/{test_api_record.id}",
-        json=router_test_config.model_update.model_dump(exclude_unset=True),
+class TestCriticalPageRouter(TestCRUDRouters):
+    __test__ = True
+    prefix = routers.CRITICAL_PAGE_ROUTER.prefix
+    model_create = critical_page_models.CriticalPageCreate(
+        url="https://www.test_website.com/test_critical_page",
+        links=[],
+        documents=[],
+        text_body="",
+        website_id=uuid.uuid4(),
     )
-    assert response.status_code == 200, response.text
-
-
-def test_update_record_not_found(api_client: TestClient, router_test_config: RouterTestConfig) -> None:
-    """
-    Tests that updating a non-existent record returns a 404 status.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-    """
-    invalid_id: uuid.UUID = uuid.uuid4()
-    response: Response = api_client.patch(
-        url=f"{router_test_config.prefix}/{invalid_id}",
-        json=router_test_config.model_update.model_dump(),
-    )
-    assert response.status_code == 404, response.text
-
-
-def test_delete_record(api_client: TestClient, router_test_config: RouterTestConfig, test_api_record: Base) -> None:
-    """
-    Tests deleting an existing record.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-        test_api_record: An existing record.
-    """
-    response: Response = api_client.delete(url=f"{router_test_config.prefix}/{test_api_record.id}")
-    assert response.status_code == 204, response.text
-
-    # Assert it can no longer be retrieved
-    fetch_response: Response = api_client.get(url=f"{router_test_config.prefix}/{test_api_record.id}")
-    assert fetch_response.status_code == 404, response.text
-
-
-def test_delete_record_not_found(api_client: TestClient, router_test_config: RouterTestConfig) -> None:
-    """
-    Tests that deleting a non-existent record returns a 404 status.
-
-    Args:
-        api_client: The FastAPI test client.
-        router_test_config: The router configuration.
-    """
-    invalid_id: uuid.UUID = uuid.uuid4()
-    response: Response = api_client.delete(url=f"{router_test_config.prefix}/{invalid_id}")
-    assert response.status_code == 404, response.text
+    model_update = critical_page_models.CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page")
+    fixture_name = "test_critical_page"

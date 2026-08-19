@@ -2,9 +2,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.critical_page import CriticalPageRead
+from app.models.critical_page_models import CriticalPageRead
 from app.utils.field_types import URLString
-from app.utils.interfaces import ServiceModels
 
 
 class WebsiteCreate(BaseModel):
@@ -25,6 +24,3 @@ class WebsiteUpdate(BaseModel):
     url: URLString | None = None
     critical_pages: list[CriticalPageRead] | None = None
     internal_links: list[URLString] | None = None
-
-
-WebsiteServiceModels = ServiceModels(model_read=WebsiteRead, model_create=WebsiteCreate, model_update=WebsiteUpdate)

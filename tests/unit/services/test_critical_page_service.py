@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.errors import NotFoundError
 from app.db.schema import DBCriticalPage, DBWebsite
-from app.models.critical_page import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
+from app.models.critical_page_models import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
 from app.services.critical_page_service import CriticalPageService
 
 

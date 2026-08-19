@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.db import repository
 from app.db.schema import DBWebsite
-from app.models.website import WebsiteCreate, WebsiteRead, WebsiteUpdate
-from app.utils.interfaces import CRUDFunctions
+from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
+from app.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class WebsiteService(CRUDFunctions[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
+class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
     def __init__(self, session: Session):
         """_summary_
 

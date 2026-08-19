@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.db import repository
 from app.db.schema import DBCriticalPage
-from app.models.critical_page import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
-from app.utils.interfaces import CRUDFunctions
+from app.models.critical_page_models import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
+from app.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class CriticalPageService(CRUDFunctions[CriticalPageRead, CriticalPageCreate, CriticalPageUpdate]):
+class CriticalPageService(CRUDService[CriticalPageRead, CriticalPageCreate, CriticalPageUpdate]):
     def __init__(self, session: Session):
         """_summary_
 

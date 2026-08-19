@@ -4,20 +4,13 @@ from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
 from sqlalchemy import UUID as PG_UUID
 from sqlalchemy import DateTime, Engine, MetaData, StaticPool, String, create_engine, text
 from sqlalchemy.orm import Mapped, Session, declarative_base, mapped_column
 
-from app.api import routers
 from app.core.config import config
-from app.db import repository
-from app.db.core import Base, get_db_session
-from app.db.schema import DBCriticalPage, DBUser, DBWebsite
+from app.db import core, repository, schema
 from app.main import app
-from app.models.critical_page import CriticalPageCreate, CriticalPageUpdate
-from app.models.user import UserCreate, UserUpdate
-from app.models.website import WebsiteCreate, WebsiteUpdate
 
 # ==========================
 #  Database & Schema Setup
@@ -49,7 +42,7 @@ def engine() -> Iterator[Engine]:
 @pytest.fixture(scope="session", autouse=True)
 def setup_database(engine: Engine) -> None:
     """Creates the database schema."""
-    Base.metadata.create_all(bind=engine)
+    core.Base.metadata.create_all(bind=engine)
     TestBase.metadata.create_all(bind=engine)
 
 
@@ -80,7 +73,7 @@ def api_client(session: Session) -> Iterator[TestClient]:
     Yields:
         The configured TestClient instance.
     """
-    app.dependency_overrides[get_db_session] = lambda: session
+    app.dependency_overrides[core.get_db_session] = lambda: session
     with TestClient(app) as client:
         yield client
         app.dependency_overrides.clear()
@@ -91,7 +84,7 @@ def api_client(session: Session) -> Iterator[TestClient]:
 # ==========================
 
 
-def _create_and_add[DBRecord: Base](session: Session, record: DBRecord) -> DBRecord:
+def _create_and_add[DBRecord: core.Base](session: Session, record: DBRecord) -> DBRecord:
     """
     Creates a temporary record for testing.
 
@@ -113,15 +106,15 @@ def test_record(session: Session) -> TestDBTable:
 
 
 @pytest.fixture()
-def test_user(session: Session) -> DBUser:
-    return _create_and_add(session, record=DBUser(name="Test User"))
+def test_user(session: Session) -> schema.DBUser:
+    return _create_and_add(session, record=schema.DBUser(name="Test User"))
 
 
 @pytest.fixture()
-def test_website(session: Session) -> DBWebsite:
+def test_website(session: Session) -> schema.DBWebsite:
     return _create_and_add(
         session,
-        record=DBWebsite(
+        record=schema.DBWebsite(
             url="https://www.test_website.com",
             internal_links=[],
             critical_pages=[],
@@ -130,10 +123,10 @@ def test_website(session: Session) -> DBWebsite:
 
 
 @pytest.fixture()
-def test_critical_page(session: Session, test_website: DBWebsite) -> DBCriticalPage:
+def test_critical_page(session: Session, test_website: schema.DBWebsite) -> schema.DBCriticalPage:
     return _create_and_add(
         session,
-        record=DBCriticalPage(
+        record=schema.DBCriticalPage(
             url=f"{test_website.url}/test_critical_page",
             links=[],
             documents=[],
@@ -141,69 +134,3 @@ def test_critical_page(session: Session, test_website: DBWebsite) -> DBCriticalP
             website_id=test_website.id,
         ),
     )
-
-
-# ==========================
-#  API Tests Configuration
-# ==========================
-
-
-class RouterTestConfig(BaseModel):
-    """Defines the configuration and payloads for CRUD endpoint testing."""
-
-    prefix: str
-    model_create: BaseModel
-    model_update: BaseModel
-    test_fixture_name: str
-
-
-ROUTER_TEST_CONFIGS: list[RouterTestConfig] = [
-    RouterTestConfig(
-        prefix=routers.USER_ROUTER.prefix,
-        model_create=UserCreate(name="Test User"),
-        model_update=UserUpdate(name="Updated User"),
-        test_fixture_name="test_user",
-    ),
-    RouterTestConfig(
-        prefix=routers.WEBSITE_ROUTER.prefix,
-        model_create=WebsiteCreate(url="https://www.test_website.com", critical_pages=[], internal_links=[]),
-        model_update=WebsiteUpdate(url="https://www.updated_website.com"),
-        test_fixture_name="test_website",
-    ),
-    RouterTestConfig(
-        prefix=routers.CRITICAL_PAGE_ROUTER.prefix,
-        model_create=CriticalPageCreate(
-            url="https://www.test_website.com/test_critical_page",
-            links=[],
-            documents=[],
-            text_body="",
-            website_id=uuid.uuid4(),
-        ),
-        model_update=CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page"),
-        test_fixture_name="test_critical_page",
-    ),
-]
-
-
-def _get_route_name(config: RouterTestConfig) -> str:
-    """Extracts the name of the router from the configuration.
-
-    Args:
-        config: The router configuration
-
-    Returns:
-        str: The name of the router
-    """
-    return config.prefix.strip("/")
-
-
-@pytest.fixture(params=ROUTER_TEST_CONFIGS, ids=_get_route_name)
-def router_test_config(request: pytest.FixtureRequest) -> RouterTestConfig:
-    """Yields the current router configuration for testing."""
-    return request.param
-
-
-@pytest.fixture
-def test_api_record(request: pytest.FixtureRequest, router_test_config: RouterTestConfig) -> Base:
-    """Dynamically fetches the database record fixture specified in the config."""
-    return request.getfixturevalue(router_test_config.test_fixture_name)

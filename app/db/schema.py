@@ -12,7 +12,6 @@ class DBUser(Base):
 
 class DBCriticalPage(Base):
     __tablename__ = "critical_pages"
-    # TODO: Add constraints (will need to update conftest and tests)
     url: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     links: Mapped[list[str]] = mapped_column(JSON, nullable=True)
     documents: Mapped[list[str]] = mapped_column(JSON, nullable=True)

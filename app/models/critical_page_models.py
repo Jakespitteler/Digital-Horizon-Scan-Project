@@ -3,7 +3,6 @@ import uuid
 from pydantic import BaseModel, ConfigDict
 
 from app.utils.field_types import URLString
-from app.utils.interfaces import ServiceModels
 
 
 class CriticalPageCreate(BaseModel):
@@ -29,10 +28,3 @@ class CriticalPageUpdate(BaseModel):
     links: list[URLString] | None = None
     documents: list[URLString] | None = None
     text_body: str | None = None
-
-
-CriticalPageServiceModels = ServiceModels(
-    model_read=CriticalPageRead,
-    model_create=CriticalPageCreate,
-    model_update=CriticalPageUpdate,
-)

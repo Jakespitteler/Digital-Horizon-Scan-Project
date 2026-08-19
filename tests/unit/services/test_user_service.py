@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.errors import NotFoundError
 from app.db.schema import DBUser
-from app.models.user import UserCreate, UserRead, UserUpdate
+from app.models.user_models import UserCreate, UserRead, UserUpdate
 from app.services.user_service import UserService
 
 

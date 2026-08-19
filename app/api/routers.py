@@ -1,21 +1,24 @@
 from fastapi import APIRouter
 
-from app.api.router_factory import create_crud_router
-from app.models.critical_page import CriticalPageServiceModels
-from app.models.user import UserServiceModels
-from app.models.website import WebsiteServiceModels
-from app.services.critical_page_service import CriticalPageService
-from app.services.user_service import UserService
-from app.services.website_service import WebsiteService
+from app.api.crud_router_factory import create_crud_router
+from app.models import critical_page_models, user_models, website_models
+from app.services import critical_page_service, user_service, website_service
 
-USER_ROUTER: APIRouter = create_crud_router(prefix="/users", service=UserService, service_models=UserServiceModels)
+USER_ROUTER: APIRouter = create_crud_router(
+    prefix="/users",
+    service_class=user_service.UserService,
+    create_class=user_models.UserCreate,
+    update_class=user_models.UserUpdate,
+)
 CRITICAL_PAGE_ROUTER: APIRouter = create_crud_router(
     prefix="/critical_pages",
-    service=CriticalPageService,
-    service_models=CriticalPageServiceModels,
+    service_class=critical_page_service.CriticalPageService,
+    create_class=critical_page_models.CriticalPageCreate,
+    update_class=critical_page_models.CriticalPageUpdate,
 )
 WEBSITE_ROUTER: APIRouter = create_crud_router(
     prefix="/websites",
-    service=WebsiteService,
-    service_models=WebsiteServiceModels,
+    service_class=website_service.WebsiteService,
+    create_class=website_models.WebsiteCreate,
+    update_class=website_models.WebsiteUpdate,
 )

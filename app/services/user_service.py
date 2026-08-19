@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.db import repository
 from app.db.schema import DBUser
-from app.models.user import UserCreate, UserRead, UserUpdate
-from app.utils.interfaces import CRUDFunctions
+from app.models.user_models import UserCreate, UserRead, UserUpdate
+from app.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class UserService(CRUDFunctions[UserRead, UserCreate, UserUpdate]):
+class UserService(CRUDService[UserRead, UserCreate, UserUpdate]):
     def __init__(self, session: Session):
         """_summary_
 
