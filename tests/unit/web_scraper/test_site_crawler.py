@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable
 
-import httpx
+import httpx2
 import pytest
 
 from app.web_scraper.errors import TrafficError, WebConnectionError
@@ -16,7 +16,7 @@ from tests.conftest import RequestHandler
 @pytest.mark.anyio
 async def test_fetch_and_extract_success(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     website_handler: RequestHandler,
 ):
     """Tests that fetch_and_extract successfully retrieves content and extracts internal links."""
@@ -32,7 +32,7 @@ async def test_fetch_and_extract_success(
 @pytest.mark.anyio
 async def test_fetch_and_extract_traffic_error(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     rate_limit_handler: RequestHandler,
 ):
     """Tests that a 429 status code correctly triggers a TrafficError exception."""
@@ -46,7 +46,7 @@ async def test_fetch_and_extract_traffic_error(
 @pytest.mark.anyio
 async def test_fetch_and_extract_connection_error(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     connection_error_handler: RequestHandler,
 ):
     """Tests that connection errors correctly raise WebConnectionError."""
@@ -59,7 +59,7 @@ async def test_fetch_and_extract_connection_error(
 @pytest.mark.parametrize("handler", ["server_error_handler", "request_error_handler", "unexpected_error_handler"])
 async def test_fetch_and_extract_non_fatal_errors(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     handler: RequestHandler,
 ):
     """Tests that non-fatal errors handle gracefully, returning empty links."""
@@ -79,7 +79,7 @@ async def test_fetch_and_extract_non_fatal_errors(
 async def test_crawl_site_success_and_skips_404(
     test_url: str,
     website_handler: RequestHandler,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
 ):
     """Tests that the crawler successfully navigates valid pages and gracefully skips 404s."""
     async with mock_client_factory(website_handler) as client:
@@ -96,7 +96,7 @@ async def test_crawl_site_success_and_skips_404(
 async def test_crawl_site_respects_max_pages(
     test_url: str,
     website_handler: RequestHandler,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
 ):
     """Tests that the crawler stops exactly at the max_pages limit."""
     async with mock_client_factory(website_handler) as client:
@@ -108,7 +108,7 @@ async def test_crawl_site_respects_max_pages(
 @pytest.mark.anyio
 async def test_crawl_site_respects_delay(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     timed_handler: tuple[RequestHandler, list[float]],
 ):
     """Tests that passing a delay correctly spaces out HTTP requests."""
@@ -125,7 +125,7 @@ async def test_crawl_site_respects_delay(
 @pytest.mark.anyio
 async def test_crawl_site_raises_on_rate_limit(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     rate_limit_handler: RequestHandler,
 ):
     """Tests that encountering a 429 correctly raises the exception upstream."""
@@ -139,7 +139,7 @@ async def test_crawl_site_raises_on_rate_limit(
 @pytest.mark.anyio
 async def test_crawl_site_raises_on_timeout(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     timeout_handler: RequestHandler,
 ):
     """Tests that encountering a timeout correctly raises the exception upstream."""
@@ -151,7 +151,7 @@ async def test_crawl_site_raises_on_timeout(
 @pytest.mark.anyio
 async def test_crawl_site_raises_on_connect_error(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     connection_error_handler: RequestHandler,
 ):
     """Tests that dropping the connection correctly raises the exception upstream."""
@@ -164,7 +164,7 @@ async def test_crawl_site_raises_on_connect_error(
 @pytest.mark.parametrize("handler", ["server_error_handler", "request_error_handler", "unexpected_error_handler"])
 async def test_crawl_site_non_fatal_errors(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     handler: RequestHandler,
 ):
     """Tests that non-fatal errors handle gracefully, returning empty links."""

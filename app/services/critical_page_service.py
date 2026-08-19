@@ -33,7 +33,10 @@ class CriticalPageService(CRUDService[CriticalPageRead, CriticalPageCreate, Crit
             The retrieved critical_pages.
         """
         critical_page_records: Sequence[DBCriticalPage] = repository.get_list(
-            self._db, table=DBCriticalPage, skip=skip, limit=limit
+            self._db,
+            table=DBCriticalPage,
+            skip=skip,
+            limit=limit,
         )
         return [CriticalPageRead.model_validate(critical_page_record) for critical_page_record in critical_page_records]
 

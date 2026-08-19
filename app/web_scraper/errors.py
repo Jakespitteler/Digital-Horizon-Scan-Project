@@ -10,8 +10,8 @@ class TrafficError(WebCrawlerError):
     """
 
     def __init__(self, url: str, status_code: int) -> None:
-        self.url = url
-        self.status_code = status_code
+        self.url: str = url
+        self.status_code: int = status_code
         super().__init__(f"Traffic issue ({status_code}) at {url=}. Crawler is overwhelming the server..")
 
 

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Iterator
 
-import httpx
+import httpx2
 
 from app.utils.html import extract_links, fetch_content_from_url, is_internal_web_page, normalise_url
 from app.web_scraper.errors import TrafficError, WebConnectionError
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 async def fetch_and_extract(
-    client: httpx.AsyncClient,
+    client: httpx2.AsyncClient,
     url: str,
     semaphore: asyncio.Semaphore,
     delay: float | None = None,
@@ -19,7 +19,7 @@ async def fetch_and_extract(
     """Safely fetches HTML and extracts internal links under a concurrency limit.
 
     Args:
-        client (httpx.AsyncClient): the web client.
+        client (httpx2.AsyncClient): the web client.
         url (str): the url to fetch and extract internal links from.
         semaphore (asyncio.Semaphore): The concurrency limiter.
         delay (float): the time to wait in between before fetching content.
@@ -44,7 +44,7 @@ async def fetch_and_extract(
             logger.debug(f"Successfully extracted {len(links)} internal links from {url=}")
             return absolute_url, links
 
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             status_code = e.response.status_code
 
             if status_code in {429, 502, 503, 504}:
@@ -52,10 +52,10 @@ async def fetch_and_extract(
             logger.warning(f"Skipping {url=} due to page-level HTTP error ({status_code}).")
             return url, []
 
-        except (httpx.TimeoutException, httpx.ConnectError) as e:
+        except (httpx2.TimeoutException, httpx2.ConnectError) as e:
             raise WebConnectionError(url) from e
 
-        except httpx.RequestError as e:
+        except httpx2.RequestError as e:
             logger.warning(f"Skipping {url=} due to general request error. Raised: {e}")
             return url, []
 
@@ -65,7 +65,7 @@ async def fetch_and_extract(
 
 
 async def crawl_site(
-    client: httpx.AsyncClient,
+    client: httpx2.AsyncClient,
     url: str,
     max_pages: int = 5000,
     max_concurrent: int = 10,
@@ -74,7 +74,7 @@ async def crawl_site(
     """Crawls a website asynchronously starting from url up to max_pages.
 
     Args:
-        client (httpx.httpx.AsyncClient): The web client
+        client (httpx2.httpx2.AsyncClient): The web client
         url (str): The website for the crawler to extract links from.
         max_pages (int, optional): The limit on pages able to be visited before the crawler stops. Defaults to 5000.
         max_concurrent (int, optional): The maximum amount of URLs to visit concurrently. Defaults to 10.

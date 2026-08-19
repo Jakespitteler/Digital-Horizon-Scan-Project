@@ -3,9 +3,9 @@ from pathlib import PurePosixPath
 from urllib.parse import ParseResult, urljoin, urlparse
 
 from bs4 import BeautifulSoup
-from httpx import AsyncClient, Response
+from httpx2 import AsyncClient, Response
 
-logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 WEB_PAGE_EXTENSIONS = {"", ".html", ".htm", ".php", ".asp", ".aspx", ".jsp"}
 
@@ -38,7 +38,7 @@ def normalise_url(url: str) -> str:
         str: The normalised url.
     """
     parsed: ParseResult = urlparse(url)
-    path = parsed.path
+    path: str = parsed.path
     path = "/" if not path or path == "/" else path.rstrip("/")
     return parsed._replace(fragment="", path=path).geturl()
 
@@ -47,15 +47,15 @@ async def fetch_content_from_url(client: AsyncClient, url: str) -> tuple[str, st
     """Fetches raw HTML content from a given URL asynchronously. Follows redirects to the url that is returned is
 
     Args:
-        client (httpx.AsyncClient): The HTTPX asynchronous client instance used for the request.
+        client (httpx2.AsyncClient): The HTTPX2 asynchronous client instance used for the request.
         url (str): The target URL to fetch content from.
 
     Returns:
         tuple[str, str]: The raw HTML text content and the final URL (after any redirects).
 
     Raises:
-        httpx.HTTPStatusError: If the HTTP response returns an unsuccessful status code (4xx or 5xx).
-        httpx.RequestError: If a network connection error, timeout, or request failure occurs.
+        httpx2.HTTPStatusError: If the HTTP response returns an unsuccessful status code (4xx or 5xx).
+        httpx2.RequestError: If a network connection error, timeout, or request failure occurs.
 
     """
     response: Response = await client.get(url, follow_redirects=True)

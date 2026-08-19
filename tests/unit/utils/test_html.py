@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-import httpx
+import httpx2
 import pytest
 
 from app.utils.html import extract_links, fetch_content_from_url
@@ -15,7 +15,7 @@ from tests.conftest import RequestHandler
 async def test_fetch_content_from_url_success(
     test_url: str,
     test_html_content: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     website_handler: RequestHandler,
 ) -> None:
     """Test successful HTML content retrieval."""
@@ -28,30 +28,30 @@ async def test_fetch_content_from_url_success(
 @pytest.mark.anyio
 async def test_fetch_content_from_url_http_error(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     server_error_handler: RequestHandler,
 ) -> None:
     """Test that HTTP status errors raise correctly through the mock pipeline."""
     async with mock_client_factory(server_error_handler) as client:
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(httpx2.HTTPStatusError):
             await fetch_content_from_url(client, url=test_url)
 
 
 @pytest.mark.anyio
 async def test_fetch_content_from_url_request_error(
     test_url: str,
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     connection_error_handler: RequestHandler,
 ) -> None:
     """Test that network connection errors raise RequestError correctly."""
     async with mock_client_factory(connection_error_handler) as client:
-        with pytest.raises(httpx.RequestError):
+        with pytest.raises(httpx2.RequestError):
             await fetch_content_from_url(client, url=test_url)
 
 
 @pytest.mark.anyio
 async def test_fetch_content_from_url_redirects(
-    mock_client_factory: Callable[[RequestHandler], httpx.AsyncClient],
+    mock_client_factory: Callable[[RequestHandler], httpx2.AsyncClient],
     redirect_handler: RequestHandler,
 ) -> None:
     """Test that the function correctly follows redirects and returns the final destination URL."""
