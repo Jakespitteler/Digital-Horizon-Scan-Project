@@ -7,6 +7,14 @@
     "cSpell.words": [
         "getfixturevalue",
         "KHTML",
-        "parametrize"
+        "parametrize",
+        "autoflush",
+        "autouse",
+        "getfixturevalue",
+        "ondelete",
+        "onupdate",
+        "poolclass",
+        "selectinload",
+        "sessionmaker"
     ]
 }
