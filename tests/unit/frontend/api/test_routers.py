@@ -2,11 +2,12 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx2 import Response
 from pydantic import BaseModel
 
-from app.api import routers
 from app.db.core import Base
-from app.models import critical_page_models, user_models, website_models
+from app.db.models import critical_page_models, website_models
+from app.frontend.api import routers
 
 
 class TestCRUDRouters:
@@ -35,7 +36,7 @@ class TestCRUDRouters:
             api_client: The FastAPI test client.
             router_test_config: The router configuration.
         """
-        response = api_client.get(url=self.prefix)
+        response: Response = api_client.get(url=self.prefix)
         assert response.status_code == 200, response.text
 
     def test_get_record(self, api_client: TestClient, api_record: Base) -> None:
@@ -47,7 +48,7 @@ class TestCRUDRouters:
             router_test_config: The router configuration.
             test_api_record: An existing record.
         """
-        response = api_client.get(url=f"{self.prefix}/{api_record.id}")
+        response: Response = api_client.get(url=f"{self.prefix}/{api_record.id}")
         assert response.status_code == 200, response.text
 
     def test_get_record_not_found(self, api_client: TestClient) -> None:
@@ -58,7 +59,7 @@ class TestCRUDRouters:
             api_client: The FastAPI test client.
             router_test_config: The router configuration.
         """
-        response = api_client.get(url=f"{self.prefix}/{uuid.uuid4()}")
+        response: Response = api_client.get(url=f"{self.prefix}/{uuid.uuid4()}")
         assert response.status_code == 404, response.text
 
     def test_create_record(self, api_client: TestClient) -> None:
@@ -69,7 +70,7 @@ class TestCRUDRouters:
             api_client: The FastAPI test client.
             router_test_config: The router configuration.
         """
-        response = api_client.post(
+        response: Response = api_client.post(
             url=self.prefix,
             json=self.model_create.model_dump(mode="json"),
         )
@@ -84,7 +85,7 @@ class TestCRUDRouters:
             router_test_config: The router configuration.
             test_api_record: An existing record.
         """
-        response = api_client.patch(
+        response: Response = api_client.patch(
             url=f"{self.prefix}/{api_record.id}",
             json=self.model_update.model_dump(exclude_unset=True),
         )
@@ -98,7 +99,7 @@ class TestCRUDRouters:
             api_client: The FastAPI test client.
             router_test_config: The router configuration.
         """
-        response = api_client.patch(
+        response: Response = api_client.patch(
             url=f"{self.prefix}/{uuid.uuid4()}",
             json=self.model_update.model_dump(mode="json"),
         )
@@ -113,7 +114,7 @@ class TestCRUDRouters:
             router_test_config: The router configuration.
             test_api_record: An existing record.
         """
-        response = api_client.delete(url=f"{self.prefix}/{api_record.id}")
+        response: Response = api_client.delete(url=f"{self.prefix}/{api_record.id}")
         assert response.status_code == 204, response.text
 
         fetch_response = api_client.get(url=f"{self.prefix}/{api_record.id}")
@@ -127,21 +128,13 @@ class TestCRUDRouters:
             api_client: The FastAPI test client.
             router_test_config: The router configuration.
         """
-        response = api_client.delete(url=f"{self.prefix}/{uuid.uuid4()}")
+        response: Response = api_client.delete(url=f"{self.prefix}/{uuid.uuid4()}")
         assert response.status_code == 404, response.text
 
 
 # ==========================
 #  Test Implementations
 # ==========================
-
-
-class TestUserRouter(TestCRUDRouters):
-    __test__ = True
-    prefix = routers.USER_ROUTER.prefix
-    model_create = user_models.UserCreate(name="Test User")
-    model_update = user_models.UserUpdate(name="Updated User")
-    fixture_name = "test_user"
 
 
 class TestWebsiteRouter(TestCRUDRouters):

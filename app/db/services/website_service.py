@@ -5,9 +5,9 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.db import repository
+from app.db.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
 from app.db.schema import DBWebsite
-from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
-from app.utils.interfaces import CRUDService
+from app.db.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
 

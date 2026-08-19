@@ -5,6 +5,9 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "cSpell.words": [
+        "getfixturevalue",
+        "KHTML",
+        "parametrize",
         "autoflush",
         "autouse",
         "getfixturevalue",

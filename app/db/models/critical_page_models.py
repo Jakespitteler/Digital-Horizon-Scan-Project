@@ -2,7 +2,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from app.utils.field_types import URLString
+from app.db.utils.field_types import URLString
 
 
 class CriticalPageCreate(BaseModel):

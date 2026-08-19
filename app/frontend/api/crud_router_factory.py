@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.core import get_db_session
-from app.utils.interfaces import CRUDService
+from app.db.utils.interfaces import CRUDService
 
 SessionDep = Annotated[Session, Depends(get_db_session)]
 

@@ -7,8 +7,8 @@ requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "fastapi>=0.141.1",
-    "httpx>=0.28.1",
     "httpx2>=2.10.0",
+    "jinja2>=3.1.6",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "sqlalchemy>=2.0.52",
@@ -22,16 +22,8 @@ dev = [
     "pytest-mock>=3.15.1",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
 log_cli = true
 log_cli_level = "INFO"
 
