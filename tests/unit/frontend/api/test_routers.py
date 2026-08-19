@@ -5,9 +5,9 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 from pydantic import BaseModel
 
-from app.api import routers
 from app.db.core import Base
-from app.models import critical_page_models, user_models, website_models
+from app.db.models import critical_page_models, website_models
+from app.frontend.api import routers
 
 
 class TestCRUDRouters:
@@ -135,14 +135,6 @@ class TestCRUDRouters:
 # ==========================
 #  Test Implementations
 # ==========================
-
-
-class TestUserRouter(TestCRUDRouters):
-    __test__ = True
-    prefix = routers.USER_ROUTER.prefix
-    model_create = user_models.UserCreate(name="Test User")
-    model_update = user_models.UserUpdate(name="Updated User")
-    fixture_name = "test_user"
 
 
 class TestWebsiteRouter(TestCRUDRouters):

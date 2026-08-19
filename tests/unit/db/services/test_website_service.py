@@ -4,9 +4,9 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.db.errors import NotFoundError
+from app.db.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
 from app.db.schema import DBWebsite
-from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
-from app.services.website_service import WebsiteService
+from app.db.services.website_service import WebsiteService
 
 
 def test_get_all_websites(session: Session, test_website: DBWebsite) -> None:

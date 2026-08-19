@@ -113,11 +113,6 @@ def test_record(session: Session) -> DBTestTable:
 
 
 @pytest.fixture()
-def test_user(session: Session) -> schema.DBUser:
-    return _create_and_add(session, record=schema.DBUser(name="Test User"))
-
-
-@pytest.fixture()
 def test_website(session: Session) -> schema.DBWebsite:
     return _create_and_add(
         session,

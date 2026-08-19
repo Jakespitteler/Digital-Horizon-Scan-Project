@@ -4,8 +4,13 @@ from collections.abc import Awaitable, Iterator
 
 import httpx2
 
-from app.utils.html import extract_links, fetch_content_from_url, is_internal_web_page, normalise_url
-from app.web_scraper.errors import TrafficError, WebConnectionError
+from app.backend.web_scraper.errors import TrafficError, WebConnectionError
+from app.backend.web_scraper.utils import (
+    extract_links,
+    fetch_content_from_url,
+    is_internal_web_page,
+    normalise_url,
+)
 
 logger = logging.getLogger(__name__)
 

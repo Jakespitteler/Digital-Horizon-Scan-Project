@@ -6,7 +6,7 @@ from time import perf_counter
 
 import httpx2
 
-from app.web_scraper.site_crawler import crawl_site
+from app.backend.web_scraper.site_crawler import crawl_site
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger: logging.Logger = logging.getLogger(__name__)
