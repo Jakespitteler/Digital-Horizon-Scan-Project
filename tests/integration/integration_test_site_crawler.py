@@ -22,7 +22,7 @@ URL: str = "https://www.teqsa.gov.au/"
 async def main() -> set[str]:
     """Runs crawl site function on a real website"""
     async with httpx.AsyncClient(headers=HEADERS, timeout=20.0) as client:
-        return await crawl_site(client, URL, max_pages=10000, max_concurrent=10, delay=1)
+        return await crawl_site(client, URL, max_pages=10000, max_concurrent=100, delay=0.5)
 
 
 if __name__ == "__main__":
