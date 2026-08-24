@@ -1,0 +1,226 @@
+[
+    {
+        "detected_at": "2026-08-23T14:05:20+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [
+            {
+                "old": "TEQSA’s provider portal is available.",
+                "new": "TEQSA’s provider portal is unavailable.",
+                "similarity": 0.9736842105263158
+            }
+        ],
+        "added": [],
+        "removed": []
+    },
+    {
+        "detected_at": "2026-08-23T14:09:40+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [
+            {
+                "old": "A webinar series want to help inform the sector about our regulatory work",
+                "new": "A webinar series to help inform the sector about our regulatory work",
+                "similarity": 0.9645390070921985
+            }
+        ],
+        "added": [],
+        "removed": []
+    },
+    {
+        "detected_at": "2026-08-23T14:17:01+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [],
+        "added": [],
+        "removed": [
+            "this is a new line whats up"
+        ]
+    },
+    {
+        "detected_at": "2026-08-23T14:20:57+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [],
+        "added": [
+            "TEQSA’s provider portal is unavailable."
+        ],
+        "removed": []
+    },
+    {
+        "detected_at": "2026-08-23T14:22:54+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [],
+        "added": [],
+        "removed": [
+            "THIS IS A TEST PARAGRAPH THAT SHOULD BE REMOVED."
+        ]
+    },
+    {
+        "detected_at": "2026-08-23T15:05:24+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [
+            {
+                "old_section": "TEQSA Talks webinar series",
+                "new_section": "TEQSA Talks webinar series",
+                "old": "A webinar series want to help inform the sector about our regulatory work",
+                "new": "A webinar series to help inform the sector about our regulatory work",
+                "similarity": 0.9645390070921985
+            }
+        ],
+        "added": [],
+        "removed": []
+    },
+    {
+        "detected_at": "2026-08-23T15:08:32+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [
+            {
+                "old_section": "TEQSA Talks webinar series",
+                "new_section": "TEQSA Talks webinar series",
+                "old": "A webinar series want to help inform the sector about our regulatory work",
+                "new": "A webinar series to help inform the sector about our regulatory work",
+                "similarity": 0.9645390070921985
+            }
+        ],
+        "added": [],
+        "removed": []
+    },
+    {
+        "detected_at": "2026-08-23T15:16:13+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [],
+        "added": [
+            {
+                "section": "TEQSA Talks webinar series",
+                "text": "A webinar series to help inform the sector about our regulatory work"
+            },
+            {
+                "section": "Higher education good practice hub",
+                "text": "Resources for providers and academics"
+            }
+        ],
+        "removed": [
+            {
+                "section": "Higher education good practice hub",
+                "text": "this is a fake paragraph for testing"
+            }
+        ]
+    },
+    {
+        "detected_at": "2026-08-24T14:15:22+08:00",
+        "url": "https://www.teqsa.gov.au",
+        "changed": [
+            {
+                "old_section": "No heading",
+                "new_section": "No heading",
+                "old": "TEQSA’s provider portal is avilable.",
+                "new": "TEQSA’s provider portal is unavailable.",
+                "similarity": 0.96
+            }
+        ],
+        "added": [],
+        "removed": []
+    },
+    {
+        "detected_at": "2026-08-24T14:24:47+08:00",
+        "url": "https://www.teqsa.gov.au/how-we-regulate/public-reporting",
+        "changed": [],
+        "added": [
+            {
+                "section": "Purpose of public reports",
+                "text": "Our public reporting aligns with the objectives of the TEQSA Act, which call for us to:"
+            },
+            {
+                "section": "Purpose of public reports",
+                "text": "In accordance with these objectives, we make our regulatory decisions and actions publicly available. Reports provide information about the applicant, the decision and the main reasons for our decision."
+            },
+            {
+                "section": "Purpose of public reports",
+                "text": "Under the TEQSA Act, we may disclose to the public, higher education information that relates to actions under the Act. The Act also allows us to ‘collect, analyse, interpret and disseminate information’ relating to higher education providers, higher education awards, quality assurance practice and quality improvement in higher education and the Higher Education Standards Framework."
+            },
+            {
+                "section": "Approach to public reporting",
+                "text": "TEQSA uses the National Register of Higher Education Providers to share information with the public about registered providers. The National Register includes key information, such as:"
+            },
+            {
+                "section": "Approach to public reporting",
+                "text": "The information on the National Register identifies whether a decision has resulted in any changes to the information listed, for example, by amending a provider’s course accreditation or registration period, or by listing a new accredited higher education course of study. Conditions imposed are also noted on the National Register and are removed when they have been met by the provider, or if they are revoked."
+            },
+            {
+                "section": "More information",
+                "text": "More information relating to our public reporting can be found at:"
+            }
+        ],
+        "removed": [
+            {
+                "section": "Quick Links",
+                "text": "Quick Links"
+            },
+            {
+                "section": "TEQSA Talks webinar series",
+                "text": "A webinar series to help inform the sector about our regulatory work"
+            },
+            {
+                "section": "TEQSA Talks webinar series",
+                "text": "A webinar series to help inform the sector about our regulatory work"
+            },
+            {
+                "section": "Higher education good practice hub",
+                "text": "Resources for providers and academics"
+            },
+            {
+                "section": "Higher education good practice hub",
+                "text": "Resources for providers and academics"
+            },
+            {
+                "section": "TEQSA e-News",
+                "text": "Sign up for monthly updates"
+            },
+            {
+                "section": "TEQSA e-News",
+                "text": "Sign up for monthly updates"
+            },
+            {
+                "section": "TEQSA e-News",
+                "text": "Featured"
+            },
+            {
+                "section": "TEQSA Talks webinar series",
+                "text": "Featured"
+            },
+            {
+                "section": "Higher education good practice hub",
+                "text": "Featured"
+            },
+            {
+                "section": "TEQSA Talks webinar series",
+                "text": "A webinar series to help inform the sector about our regulatory work"
+            },
+            {
+                "section": "TEQSA Talks webinar series",
+                "text": "A webinar series to help inform the sector about our regulatory work"
+            },
+            {
+                "section": "Higher education good practice hub",
+                "text": "Resources for providers and academics"
+            },
+            {
+                "section": "Higher education good practice hub",
+                "text": "Resources for providers and academics"
+            },
+            {
+                "section": "TEQSA e-News",
+                "text": "Sign up for monthly updates"
+            },
+            {
+                "section": "TEQSA e-News",
+                "text": "Sign up for monthly updates"
+            },
+            {
+                "section": "Academic integrity",
+                "text": "Description Access TEQSA resources for students, academics and providers"
+            },
+            {
+                "section": "Fees and charges",
+                "text": "Description Information for providers about cost recovery, fees and charges"
+            }
+        ]
+    }
+]

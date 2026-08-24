@@ -1,12 +1,12 @@
 import re
+import json
 import httpx
+
+from pathlib import Path
 from bs4 import BeautifulSoup, Comment
-from difflib import SequenceMatcher
 
 
-# =========================================================
-# 1. GET HTML FROM WEBSITE
-# =========================================================
+# get HTML from a url
 
 def get_html(url):
     response = httpx.get(
@@ -23,9 +23,7 @@ def get_html(url):
     return response.text
 
 
-# =========================================================
-# 2. CLEAN / EXTRACT CONTENT FROM HTML
-# =========================================================
+# celan the HTML and maek it into text
 
 def extract_content(html):
 
@@ -109,10 +107,26 @@ def extract_content(html):
 
     return content
 
+def save_snapshot(content):
+    with open(SNAPSHOT_FILE, "w", encoding="utf-8") as file:
+        json.dump(
+            content,
+            file,
+            indent=4,
+            ensure_ascii=False
+        )
 
-# =========================================================
-# 3. COMPARE CONTENT
-# =========================================================
+    print(f"Snapshot saved to: {SNAPSHOT_FILE}")
+
+def load_snapshot():
+    if not SNAPSHOT_FILE.exists():
+        return None
+
+    with open(SNAPSHOT_FILE, "r", encoding="utf-8") as file:
+        return json.load(file)
+    
+
+# Compare two content 
 
 def compare_content(old_content, new_content):
 
@@ -153,20 +167,30 @@ def compare_content(old_content, new_content):
 
 URL = "https://www.teqsa.gov.au"
 
-
-# Get HTML from website
-html = get_html(URL)
+SNAPSHOT_FILE = Path(__file__).parent / "snapshot.json"
 
 
-# Convert HTML into useful content
-content = extract_content(html)
+
+def main():
+    print("Scraping website...")
+
+    html = get_html(URL)
+
+    content = extract_content(html)
+
+    old_snapshot = load_snapshot()
+
+    if old_snapshot is None:
+        print("No previous snapshot found.")
+        print("Creating first snapshot...")
+
+        save_snapshot(content)
+
+        return
+
+    print("Previous snapshot found.")
+    print("Ready to compare old and new content.")
 
 
-print("HEADINGS:")
-print(content["headings"])
-
-print("\nPARAGRAPHS:")
-print(content["paragraphs"])
-
-print("\nLINKS:")
-print(content["links"])
+if __name__ == "__main__":
+    main()
