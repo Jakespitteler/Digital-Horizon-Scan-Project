@@ -21,8 +21,8 @@ HEADERS = {
 URL: str = "https://www.teqsa.gov.au/"
 
 MAX_PAGES: int = 10000
-MAX_CONCURRENT: int = 20
-SECONDS_DELAY: float = 0.1
+MAX_CONCURRENT: int = 30
+SECONDS_DELAY: float = 0.5
 SECONDS_TIMEOUT: float = 20
 NUMBER_OF_RUNS: int = 20
 BATCH_403_THRESHOLD: int = 30
