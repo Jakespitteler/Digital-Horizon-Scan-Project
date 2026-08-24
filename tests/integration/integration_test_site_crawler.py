@@ -2,11 +2,13 @@ import asyncio
 import json
 import logging
 import tempfile
+from pathlib import Path
 from time import perf_counter
 
 import httpx2
 
 from app.backend.web_scraper.site_crawler import crawl_site
+from tests.integration.plot_site_crawler import plot_runs
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger: logging.Logger = logging.getLogger(__name__)
@@ -18,21 +20,43 @@ HEADERS = {
 
 URL: str = "https://www.teqsa.gov.au/"
 
+MAX_PAGES: int = 10000
+MAX_CONCURRENT: int = 20
+SECONDS_DELAY: float = 0.7
+SECONDS_TIMEOUT: float = 20
+NUMBER_OF_RUNS: int = 3
+
 
 async def main() -> set[str]:
     """Runs crawl site function on a real website"""
-    async with httpx2.AsyncClient(headers=HEADERS, timeout=20.0) as client:
-        return await crawl_site(client, URL, max_pages=10000, max_concurrent=20, delay=0.7)
+    async with httpx2.AsyncClient(headers=HEADERS, timeout=SECONDS_TIMEOUT) as client:
+        return await crawl_site(client, URL, max_pages=MAX_PAGES, max_concurrent=MAX_CONCURRENT, delay=SECONDS_DELAY)
 
 
 if __name__ == "__main__":
-    start: float = perf_counter()
-    links: set[str] = asyncio.run(main())
-    time_taken: float = perf_counter() - start
-    minutes, seconds = divmod(time_taken, 60)
-    logger.info(f"Time taken: {time_taken:.2f} seconds. {minutes:.0f}:{seconds:.0f}")
+    with tempfile.TemporaryDirectory(delete=False) as temp_dir_str:
+        base_dir: Path = Path(temp_dir_str)
+        links_subfolder: Path = base_dir / "links_data"
+        links_subfolder.mkdir(parents=True, exist_ok=True)
+        html_plot_path: Path = base_dir / "site_crawler_test.html"
+        logger.info(f"Session directory created at: {base_dir}")
 
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as temp_json:
-        json.dump({URL: list(links)}, temp_json, indent=4)
-        temp_json.flush()
-        logger.info(f"Results saved to: {temp_json.name}")
+        runs: dict[int, tuple[float, int]] = {}
+        for i in range(1, NUMBER_OF_RUNS + 1):
+            start: float = perf_counter()
+            links: set[str] = asyncio.run(main())
+            time_taken: float = perf_counter() - start
+            minutes, seconds = divmod(time_taken, 60)
+            logger.info(f"Run {i} time taken: {minutes:.0f}:{seconds:.0f}")
+            runs[i] = (time_taken, len(links))
+
+            plot_runs(runs, html_plot_file=html_plot_path)
+
+            json_file_path = links_subfolder / f"run_{i}_links.json"
+            with open(json_file_path, "w", encoding="utf-8") as f:
+                json.dump({URL: list(links)}, f, indent=4)
+
+    timed_runs: list[float] = [time_taken for time_taken, _ in runs.values()]
+    average_time_taken: float = sum(timed_runs) / len(timed_runs)
+    minutes, seconds = divmod(average_time_taken, 60)
+    logger.info(f"Average time taken over {len(runs)} was {minutes} minutes and {seconds} seconds")

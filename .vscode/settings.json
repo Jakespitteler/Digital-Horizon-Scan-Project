@@ -5,16 +5,21 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "cSpell.words": [
-        "getfixturevalue",
-        "KHTML",
-        "parametrize",
         "autoflush",
         "autouse",
+        "dtick",
         "getfixturevalue",
+        "KHTML",
         "ondelete",
         "onupdate",
+        "parametrize",
         "poolclass",
         "selectinload",
-        "sessionmaker"
+        "sessionmaker",
+        "showlegend",
+        "ticktext",
+        "tickvals",
+        "xaxes",
+        "yaxes"
     ]
 }
