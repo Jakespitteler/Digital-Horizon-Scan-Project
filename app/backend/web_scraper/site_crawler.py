@@ -130,7 +130,7 @@ async def crawl_site(
 
         if batch_403_count >= batch_403_threshold:
             logger.error(
-                f"Site-wide block detected: Encountered {batch_403_count} 403 Forbidden responses in a single batch.)"
+                f"Site-wide block detected: Encountered {batch_403_count} 403 Forbidden responses in a single batch."
             )
             raise TrafficError(url, 403)
 
