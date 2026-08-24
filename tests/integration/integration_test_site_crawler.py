@@ -22,13 +22,15 @@ URL: str = "https://www.teqsa.gov.au/"
 async def main() -> set[str]:
     """Runs crawl site function on a real website"""
     async with httpx2.AsyncClient(headers=HEADERS, timeout=20.0) as client:
-        return await crawl_site(client, URL, max_pages=10000, max_concurrent=100, delay=0.5)
+        return await crawl_site(client, URL, max_pages=10000, max_concurrent=20, delay=0.7)
 
 
 if __name__ == "__main__":
     start: float = perf_counter()
     links: set[str] = asyncio.run(main())
-    logger.info(f"Time taken: {perf_counter() - start:.2f} seconds.")
+    time_taken: float = perf_counter() - start
+    minutes, seconds = divmod(time_taken, 60)
+    logger.info(f"Time taken: {time_taken:.2f} seconds. {minutes:.0f}:{seconds:.0f}")
 
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as temp_json:
         json.dump({URL: list(links)}, temp_json, indent=4)
