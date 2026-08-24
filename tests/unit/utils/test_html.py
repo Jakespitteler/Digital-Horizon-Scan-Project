@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 import pytest
-from httpx import AsyncClient, ConnectError, HTTPStatusError, MockTransport, Request, RequestError, Response
+from httpx2 import AsyncClient, ConnectError, HTTPStatusError, MockTransport, Request, RequestError, Response
 
 from app.utils.html import extract_links, fetch_content_from_url
 

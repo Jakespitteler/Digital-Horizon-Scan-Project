@@ -106,11 +106,6 @@ def test_record(session: Session) -> TestDBTable:
 
 
 @pytest.fixture()
-def test_user(session: Session) -> schema.DBUser:
-    return _create_and_add(session, record=schema.DBUser(name="Test User"))
-
-
-@pytest.fixture()
 def test_website(session: Session) -> schema.DBWebsite:
     return _create_and_add(
         session,
@@ -133,4 +128,12 @@ def test_critical_page(session: Session, test_website: schema.DBWebsite) -> sche
             text_body="",
             website_id=test_website.id,
         ),
+    )
+
+
+@pytest.fixture()
+def test_internal_link(session: Session, test_website: schema.DBWebsite) -> schema.DBInternalLink:
+    return _create_and_add(
+        session,
+        record=schema.DBInternalLink(url=f"{test_website.url}/test_internal_link", website_id=test_website.id),
     )

@@ -13,6 +13,13 @@ class CriticalPageCreate(BaseModel):
     website_id: uuid.UUID
 
 
+class CriticalPageCreateNoWebsite(BaseModel):
+    url: URLString
+    links: list[URLString]
+    documents: list[URLString]
+    text_body: str
+
+
 class CriticalPageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID

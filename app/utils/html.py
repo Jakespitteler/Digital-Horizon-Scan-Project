@@ -2,7 +2,7 @@ from pathlib import PurePosixPath
 from urllib.parse import ParseResult, urljoin, urlparse
 
 from bs4 import BeautifulSoup
-from httpx import AsyncClient, Response
+from httpx2 import AsyncClient, Response
 
 WEB_PAGE_EXTENSIONS = {"", ".html", ".htm", ".php", ".asp", ".aspx", ".jsp"}
 

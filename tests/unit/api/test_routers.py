@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.api import routers
 from app.db.core import Base
-from app.models import critical_page_models, user_models, website_models
+from app.models import critical_page_models, internal_link_models, website_models
 
 
 class TestCRUDRouters:
@@ -136,14 +136,6 @@ class TestCRUDRouters:
 # ==========================
 
 
-class TestUserRouter(TestCRUDRouters):
-    __test__ = True
-    prefix = routers.USER_ROUTER.prefix
-    model_create = user_models.UserCreate(name="Test User")
-    model_update = user_models.UserUpdate(name="Updated User")
-    fixture_name = "test_user"
-
-
 class TestWebsiteRouter(TestCRUDRouters):
     __test__ = True
     prefix = routers.WEBSITE_ROUTER.prefix
@@ -166,3 +158,14 @@ class TestCriticalPageRouter(TestCRUDRouters):
     )
     model_update = critical_page_models.CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page")
     fixture_name = "test_critical_page"
+
+
+class TestInternalLinkRouter(TestCRUDRouters):
+    __test__ = True
+    prefix = routers.INTERNAL_LINK_ROUTER.prefix
+    model_create = internal_link_models.InternalLinkCreate(
+        url="https://www.test_website.com/test_internal_link",
+        website_id=uuid.uuid4(),
+    )
+    model_update = internal_link_models.InternalLinkUpdate(url="https://www.test_website.com/updated_internal_link")
+    fixture_name = "test_internal_link"

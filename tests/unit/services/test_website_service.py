@@ -45,7 +45,9 @@ def test_create_website(session: Session) -> None:
     Args:
         session: The database session fixture.
     """
-    website_details = WebsiteCreate(url="https://www.test_website.com", critical_pages=[], internal_links=[])
+    website_details = WebsiteCreate(
+        url="https://www.test_website.com", critical_pages=[], internal_links=[]
+    )  # TODO add test with links and critical pages
 
     created_website: WebsiteRead = WebsiteService(session).create(website_details)
     assert created_website.id is not None
