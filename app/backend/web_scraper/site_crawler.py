@@ -20,7 +20,7 @@ async def fetch_and_extract(
     url: str,
     semaphore: asyncio.Semaphore,
     delay: float | None = None,
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], int | None]:
     """Safely fetches HTML and extracts internal links under a concurrency limit.
 
     Args:
@@ -30,7 +30,12 @@ async def fetch_and_extract(
         delay (float): the time to wait in between before fetching content.
 
     Returns:
-        tuple[str, list[str]]: (the url, all of the internal links on that page)
+        tuple[str, list[str], int | None]: (the url, all of the internal links on that page, the status
+            code from the request)
+
+    Raises:
+        TrafficError: If the server returns a rate-limiting or throttling status code (429, 502, 503, 504).
+        WebConnectionError: If a timeout or connection failure occurs.
     """
     async with semaphore:
         try:
@@ -42,12 +47,12 @@ async def fetch_and_extract(
 
             # Ensure redirect was not to an external site
             if not is_internal_web_page(url, check_url=absolute_url):
-                return url, []
+                return url, [], None
 
             links: list[str] = extract_links(absolute_url, html_content, internal_only=True)
 
             logger.debug(f"Successfully extracted {len(links)} internal links from {url=}")
-            return absolute_url, links
+            return absolute_url, links, 200
 
         except httpx2.HTTPStatusError as e:
             status_code = e.response.status_code
@@ -55,18 +60,18 @@ async def fetch_and_extract(
             if status_code in {429, 502, 503, 504}:
                 raise TrafficError(url, status_code) from e
             logger.warning(f"Skipping {url=} due to page-level HTTP error ({status_code}).")
-            return url, []
+            return url, [], status_code
 
         except (httpx2.TimeoutException, httpx2.ConnectError) as e:
             raise WebConnectionError(url) from e
 
         except httpx2.RequestError as e:
             logger.warning(f"Skipping {url=} due to general request error. Raised: {e}")
-            return url, []
+            return url, [], None
 
         except Exception as e:
             logger.warning(f"Skipping {url=} due to unexpected error. Raised: {e}")
-            return url, []
+            return url, [], None
 
 
 async def crawl_site(
@@ -75,6 +80,7 @@ async def crawl_site(
     max_pages: int = 5000,
     max_concurrent: int = 10,
     delay: float = 0,
+    batch_403_threshold: int = 20,
 ) -> set[str]:
     """Crawls a website asynchronously starting from url up to max_pages.
 
@@ -87,6 +93,10 @@ async def crawl_site(
 
     Returns:
         set[str]: All internal links in the website
+
+    Raises:
+        TrafficError: If a batch encounters a volume of 403 Forbidden responses exceeding the block_threshold,
+            indicating a firewall or site-wide ban.
     """
     semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -97,21 +107,32 @@ async def crawl_site(
 
     while queue and len(visited) < max_pages:
         logger.info(f"Queue size: {len(queue)} | Visited: {len(visited)}")
+
         batch_size: int = min(len(queue), max_pages - len(visited))
         batch: list[str] = queue[:batch_size]
         queue = queue[batch_size:]
 
-        tasks: Iterator[Awaitable[tuple[str, list[str]]]] = (
+        tasks: Iterator[Awaitable[tuple[str, list[str], int | None]]] = (
             fetch_and_extract(client, current_url, semaphore, delay) for current_url in batch
         )
-        batch_results: list[tuple[str, list[str]]] = await asyncio.gather(*tasks)
+        batch_results: list[tuple[str, list[str], int | None]] = await asyncio.gather(*tasks)
 
-        for visited_url, internal_links in batch_results:
+        batch_403_count = 0
+        for visited_url, internal_links, status_code in batch_results:
+            if status_code == 403:
+                batch_403_count += 1
+
             visited.add(normalise_url(visited_url))
             for link in internal_links:
                 if link not in visited and link not in queued:
                     queued.add(link)
                     queue.append(link)
+
+        if batch_403_count >= batch_403_threshold:
+            logger.error(
+                f"Site-wide block detected: Encountered {batch_403_count} 403 Forbidden responses in a single batch.)"
+            )
+            raise TrafficError(url, 403)
 
     if len(visited) >= max_pages:
         logger.warning(f"Crawler exceeded the {max_pages=}, stopping crawler...")

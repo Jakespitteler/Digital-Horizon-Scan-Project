@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
-def plot_runs(runs: dict[int, tuple[float, int]], html_plot_file: Path) -> None:
+def plot_runs(runs: dict[int, tuple[float, int]], html_plot_file: Path, concurrent: int, delay: float) -> None:
     timed_runs: list[float] = [time_taken for time_taken, _ in runs.values()]
     links_found: list[int] = [links for _, links in runs.values()]
 
@@ -23,7 +23,10 @@ def plot_runs(runs: dict[int, tuple[float, int]], html_plot_file: Path) -> None:
     fig.update_yaxes(tickvals=tick_vals, ticktext=tick_text, title_text="Time Taken", row=1, col=1)
     fig.update_yaxes(title_text="Links Found", row=2, col=1)
     fig.update_xaxes(title_text="Run Number", dtick=1, row=2, col=1)
-    fig.update_layout(title=f"Benchmark Results Across {len(runs)} Runs", showlegend=False)
+    fig.update_layout(
+        title=f"Benchmark results across {len(runs)} run/s, with {concurrent=} and {delay=}s",
+        showlegend=False,
+    )
 
     fig.write_html(file=html_plot_file, auto_open=(len(runs) == 1))
 
@@ -43,5 +46,5 @@ if __name__ == "__main__":
         runs: dict[int, tuple[float, int]] = {}
         for i in range(1, 5):
             runs[i] = (400.0 + (i * 50.0), 100 - (i * 5))
-            plot_runs(runs, Path(temp_file.name))
+            plot_runs(runs, Path(temp_file.name), 0, 0)
             asyncio.run(asyncio.sleep(2))

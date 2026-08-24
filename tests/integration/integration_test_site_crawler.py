@@ -22,15 +22,23 @@ URL: str = "https://www.teqsa.gov.au/"
 
 MAX_PAGES: int = 10000
 MAX_CONCURRENT: int = 20
-SECONDS_DELAY: float = 0.7
+SECONDS_DELAY: float = 0.1
 SECONDS_TIMEOUT: float = 20
-NUMBER_OF_RUNS: int = 3
+NUMBER_OF_RUNS: int = 20
+BATCH_403_THRESHOLD: int = 30
 
 
 async def main() -> set[str]:
     """Runs crawl site function on a real website"""
     async with httpx2.AsyncClient(headers=HEADERS, timeout=SECONDS_TIMEOUT) as client:
-        return await crawl_site(client, URL, max_pages=MAX_PAGES, max_concurrent=MAX_CONCURRENT, delay=SECONDS_DELAY)
+        return await crawl_site(
+            client,
+            URL,
+            max_pages=MAX_PAGES,
+            max_concurrent=MAX_CONCURRENT,
+            delay=SECONDS_DELAY,
+            batch_403_threshold=BATCH_403_THRESHOLD,
+        )
 
 
 if __name__ == "__main__":
@@ -50,7 +58,7 @@ if __name__ == "__main__":
             logger.info(f"Run {i} time taken: {minutes:.0f}:{seconds:.0f}")
             runs[i] = (time_taken, len(links))
 
-            plot_runs(runs, html_plot_file=html_plot_path)
+            plot_runs(runs, html_plot_file=html_plot_path, concurrent=MAX_CONCURRENT, delay=SECONDS_DELAY)
 
             json_file_path = links_subfolder / f"run_{i}_links.json"
             with open(json_file_path, "w", encoding="utf-8") as f:
