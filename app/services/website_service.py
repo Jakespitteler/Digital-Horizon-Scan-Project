@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.db import repository
 from app.db.schema import DBWebsite
+from app.models.critical_page_models import CriticalPageCreate
+from app.models.internal_link_models import InternalLinkCreateBatch
 from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
+from app.services.critical_page_service import CriticalPageService
+from app.services.internal_link_service import InternalLinkService
 from app.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -64,8 +68,24 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
         Returns:
             The website record.
         """
-        website_record: DBWebsite = DBWebsite(**model_create.model_dump())
+        website_record: DBWebsite = DBWebsite(**model_create.model_dump(exclude={"critical_pages", "internal_links"}))
         repository.add(self._db, record=website_record)
+
+        if model_create.critical_pages:
+            [
+                CriticalPageService(self._db).create(
+                    CriticalPageCreate(website_id=website_record.id, **critical_page.model_dump())
+                )
+                for critical_page in model_create.critical_pages
+            ]
+        if model_create.internal_links:
+            InternalLinkService(self._db).create_batch(
+                model_create_batch=InternalLinkCreateBatch(
+                    urls=model_create.internal_links,
+                    website_id=website_record.id,
+                )
+            )
+
         return WebsiteRead.model_validate(website_record)
 
     def update(self, id: uuid.UUID, model_update: WebsiteUpdate) -> WebsiteRead:

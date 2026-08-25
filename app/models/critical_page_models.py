@@ -1,15 +1,18 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.field_types import URLString
 
 
-class CriticalPageCreate(BaseModel):
+class CriticalPageBase(BaseModel):
     url: URLString
-    links: list[URLString]
-    documents: list[URLString]
-    text_body: str
+    links: list[URLString] = Field(default_factory=list[URLString])
+    documents: list[URLString] = Field(default_factory=list[URLString])
+    text_body: str = Field(default="")
+
+
+class CriticalPageCreate(CriticalPageBase):
     website_id: uuid.UUID
 
 

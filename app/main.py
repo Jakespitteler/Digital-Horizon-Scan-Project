@@ -61,6 +61,6 @@ def get_root() -> str:
 
 
 # Register routes
-app.include_router(routers.USER_ROUTER)
 app.include_router(routers.WEBSITE_ROUTER)
 app.include_router(routers.CRITICAL_PAGE_ROUTER)
+app.include_router(routers.INTERNAL_LINK_ROUTER)

@@ -66,11 +66,8 @@ def test_get_list_with_limit(session: Session) -> None:
         repository.add(session, record)
 
     # Retrieving with limit
-    records = repository.get_list(session, table=TestDBTable, skip=0, limit=2)
+    records = repository.get_list(session, table=TestDBTable, skip=0, limit=2)  # TODO: Test invalid limits
     assert len(records) == 2
-
-
-# TODO: Test invalid limits
 
 
 def test_get_list_attributes(session: Session, test_record: TestDBTable) -> None:
@@ -116,6 +113,45 @@ def test_add_raises_integrity_error(session: Session, test_record: TestDBTable) 
     invalid_record = TestDBTable(name=test_record.name)
     with pytest.raises(IntegrityError) as e:
         repository.add(session, invalid_record)
+    assert "unique constraint" in str(e.value)
+
+
+def test_batch_add(session: Session) -> None:
+    """
+    Tests adding multiple records in batch.
+
+    Args:
+        session: The database session fixture.
+    """
+    records = [
+        TestDBTable(name="Batch Record 1"),
+        TestDBTable(name="Batch Record 2"),
+        TestDBTable(name="Batch Record 3"),
+    ]
+
+    repository.batch_add(session, records)
+
+    for record in records:
+        assert record.id is not None
+        fetched_record: TestDBTable = repository.get(session, table=TestDBTable, id=record.id)
+        assert fetched_record.name == record.name
+
+
+def test_batch_add_raises_integrity_error(session: Session, test_record: TestDBTable) -> None:
+    """
+    Tests that batch_add raises IntegrityError if unique constraints are violated.
+
+    Args:
+        session: The database session fixture.
+        test_record: The test record.
+    """
+    records = [
+        TestDBTable(name="Valid Batch Record"),
+        TestDBTable(name=test_record.name),  # Duplicate name
+    ]
+
+    with pytest.raises(IntegrityError) as e:
+        repository.batch_add(session, records)
     assert "unique constraint" in str(e.value)
 
 

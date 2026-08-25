@@ -1,15 +1,11 @@
 import uuid
 from collections.abc import Sequence
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from app.db.core import get_db_session
+from app.api.dependencies import SessionDep
 from app.utils.interfaces import CRUDService
-
-SessionDep = Annotated[Session, Depends(get_db_session)]
 
 
 def create_crud_router[READ: BaseModel, CREATE: BaseModel, UPDATE: BaseModel](
