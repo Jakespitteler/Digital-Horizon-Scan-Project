@@ -24,7 +24,6 @@ class CriticalPageRead(BaseModel):
 
 
 class CriticalPageUpdate(BaseModel):
-    url: URLString | None = None
     links: list[URLString] | None = None
     documents: list[URLString] | None = None
     text_body: str | None = None

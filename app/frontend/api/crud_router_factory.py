@@ -18,7 +18,7 @@ def create_crud_router[READ: BaseModel, CREATE: BaseModel, UPDATE: BaseModel](
     create_class: type[CREATE],
     update_class: type[UPDATE],
 ) -> APIRouter:
-    """Generates a standardised CRUD router."""
+    """Generates a standardised CRUD router for Database Operations."""
     router = APIRouter(prefix=prefix, tags=[prefix.split("/")[-1].capitalize()])
 
     @router.get("/", response_model=Sequence[READ], status_code=status.HTTP_200_OK)

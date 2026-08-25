@@ -22,11 +22,12 @@ async def test_fetch_and_extract_success(
     """Tests that fetch_and_extract successfully retrieves content and extracts internal links."""
 
     async with mock_client_factory(website_handler) as client:
-        url, links = await fetch_and_extract(client, test_url, asyncio.Semaphore(2))
+        url, links, status_code = await fetch_and_extract(client, test_url, asyncio.Semaphore(2))
 
     assert url == test_url
     assert len(links) == 4
     assert any("page1.html" in link for link in links)
+    assert status_code == 200
 
 
 @pytest.mark.anyio
@@ -64,7 +65,7 @@ async def test_fetch_and_extract_non_fatal_errors(
 ):
     """Tests that non-fatal errors handle gracefully, returning empty links."""
     async with mock_client_factory(handler) as client:
-        url, links = await fetch_and_extract(client, test_url, asyncio.Semaphore(2))
+        url, links, _ = await fetch_and_extract(client, test_url, asyncio.Semaphore(2))
 
     assert url == test_url
     assert links == []

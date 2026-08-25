@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
-    <!-- Link to your custom CSS -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,5 +11,32 @@
         <h1>{{ heading }}</h1>
         <p>{{ message }}</p>
     </div>
+    <h2>Crawler Control Panel</h2>
+    
+    <form action="/crawl" method="post">
+        <div>
+            <label for="url">Target URL:</label><br>
+            <input type="text" id="url" name="url" value="{{ url | default('') }}" required>
+        </div>
+        <button type="submit">Run Crawler</button>
+    </form>
+
+    <hr>
+
+    {% if links is not none %}
+    <div>
+        <h3>Discovered Links (Total: {{ links | length }})</h3>
+        
+        {% if links | length > 0 %}
+        <ul>
+            {% for link in links %}
+            <li><a href="{{ link }}" target="_blank">{{ link }}</a></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No links found or crawler returned an empty set.</p>
+        {% endif %}
+    </div>
+    {% endif %}
 </body>
 </html>
