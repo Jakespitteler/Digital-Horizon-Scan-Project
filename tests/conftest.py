@@ -109,11 +109,7 @@ def test_record(session: Session) -> TestDBTable:
 def test_website(session: Session) -> schema.DBWebsite:
     return _create_and_add(
         session,
-        record=schema.DBWebsite(
-            url="https://www.test_website.com",
-            internal_links=[],
-            critical_pages=[],
-        ),
+        record=schema.DBWebsite(url="https://www.test_website.com"),
     )
 
 
