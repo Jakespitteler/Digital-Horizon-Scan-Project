@@ -19,8 +19,7 @@ def _is_web_page(parsed_url: ParseResult) -> bool:
     Returns:
         bool: True if the parsed_url goes to a webpage.
     """
-    suffix: str = PurePosixPath(parsed_url.path).suffix.lower()
-    return suffix in WEB_PAGE_EXTENSIONS
+    return PurePosixPath(parsed_url.path).suffix.lower() in WEB_PAGE_EXTENSIONS
 
 
 def is_internal_web_page(url: str, check_url: str) -> bool:

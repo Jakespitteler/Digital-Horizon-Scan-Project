@@ -69,16 +69,16 @@ def test_update_critical_page(session: Session, test_critical_page: DBCriticalPa
         session: The database session fixture.
         test_critical_page: The test critical page record.
     """
-    model_update = CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page")
+    model_update = CriticalPageUpdate(links=["https://www.test_website.com/updated_critical_page_link"])
 
     updated_critical_page: CriticalPageRead = CriticalPageService(session).update(
         id=test_critical_page.id, model_update=model_update
     )
     assert updated_critical_page.id == test_critical_page.id
-    assert updated_critical_page.url == model_update.url
+    assert updated_critical_page.links == model_update.links
 
     fetched_critical_page: CriticalPageRead = CriticalPageService(session).get(id=test_critical_page.id)
-    assert fetched_critical_page.url == model_update.url
+    assert fetched_critical_page.links == model_update.links
 
 
 def test_delete_critical_page(session: Session, test_critical_page: DBCriticalPage) -> None:
