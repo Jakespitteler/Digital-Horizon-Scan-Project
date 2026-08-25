@@ -43,6 +43,34 @@ def test_get_internal_link(session: Session, test_internal_link: DBInternalLink)
     assert fetched_internal_link.url == test_internal_link.url
 
 
+def test_get_internal_link_by_url(session: Session, test_internal_link: DBInternalLink) -> None:
+    """
+    Tests retrieving an existing internal_link by its URL.
+
+    Args:
+        session: The database session fixture.
+        test_internal_link: The test internal link record.
+    """
+    fetched_internal_link: InternalLinkRead = InternalLinkService(session).get_by_url(url=test_internal_link.url)
+
+    assert fetched_internal_link is not None
+    assert fetched_internal_link.id == test_internal_link.id
+    assert fetched_internal_link.url == test_internal_link.url
+
+
+def test_get_internal_link_by_url_not_found(session: Session) -> None:
+    """
+    Tests that retrieving a non-existent internal_link by URL raises a NotFoundError.
+
+    Args:
+        session: The database session fixture.
+    """
+    non_existent_url = "https://www.test_website.com/non-existent-link"
+
+    with pytest.raises(NotFoundError):
+        InternalLinkService(session).get_by_url(url=non_existent_url)
+
+
 def test_create_internal_link(session: Session, test_website: DBWebsite) -> None:
     """
     Tests creating a new critical page with basic details.

@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.db import repository
+from app.db.errors import NotFoundError
 from app.db.schema import DBInternalLink
 from app.models.internal_link_models import (
     InternalLinkCreate,
@@ -57,6 +58,30 @@ class InternalLinkService(CRUDService[InternalLinkRead, InternalLinkCreate, Inte
         """
         internal_link_record: DBInternalLink = repository.get(self._db, table=DBInternalLink, id=id)
         return InternalLinkRead.model_validate(internal_link_record)
+
+    def get_by_url(self, url: str) -> InternalLinkRead:
+        """
+        Retrieves a single internal_link record by its url.
+
+        Args:
+            url: The url of the internal_link to retrieve.
+
+        Raises:
+            NotFoundError: If no internal_link exists with the provided URL.
+
+        Returns:
+            The retrieved internal_link.
+        """
+        internal_link_records: Sequence[DBInternalLink] = repository.get_list(
+            self._db,
+            table=DBInternalLink,
+            attributes={"url": url},
+            limit=1,
+        )
+        if not internal_link_records:
+            raise NotFoundError(attributes={"url": url})
+
+        return InternalLinkRead.model_validate(internal_link_records[0])
 
     def create(self, model_create: InternalLinkCreate) -> InternalLinkRead:
         """
