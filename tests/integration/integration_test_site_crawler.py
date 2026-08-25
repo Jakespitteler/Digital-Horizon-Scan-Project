@@ -6,9 +6,9 @@ from pathlib import Path
 from time import perf_counter
 
 import httpx2
+from plot_site_crawler import plot_runs
 
 from app.backend.web_scraper.site_crawler import crawl_site
-from tests.integration.plot_site_crawler import plot_runs
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger: logging.Logger = logging.getLogger(__name__)

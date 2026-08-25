@@ -45,8 +45,3 @@ select = [
     "SIM", # flake8-simplify
     "I",   # isort
 ]
-
-[tool.uv.workspace]
-members = [
-    "venv",
-]

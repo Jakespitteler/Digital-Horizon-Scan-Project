@@ -1,5 +1,15 @@
 {
-    "configurations": [
+    "configurations": [{
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "envFile": "${workspaceFolder}/.env"
+        },
         {
             "name": "Python Debugger: FastAPI",
             "type": "debugpy",

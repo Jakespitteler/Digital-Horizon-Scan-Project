@@ -10,22 +10,33 @@ logging.getLogger("httpx2").setLevel(logging.WARNING)
 WEB_PAGE_EXTENSIONS = {"", ".html", ".htm", ".php", ".asp", ".aspx", ".jsp"}
 
 
-def _is_web_page(url: str) -> bool:
+def _is_web_page(parsed_url: ParseResult) -> bool:
     """Determines if a link goes to a web page (rather than a document).
 
     Args:
-        url (str): The url to check.
+        parsed_url (ParseResult): The parsed_url to check.
 
     Returns:
-        bool: True if the url goes to a webpage.
+        bool: True if the parsed_url goes to a webpage.
     """
-    path: str = urlparse(url).path
-    suffix: str = PurePosixPath(path).suffix.lower()
+    suffix: str = PurePosixPath(parsed_url.path).suffix.lower()
     return suffix in WEB_PAGE_EXTENSIONS
 
 
 def is_internal_web_page(url: str, check_url: str) -> bool:
-    return _is_web_page(check_url) and urlparse(check_url).netloc == urlparse(url).netloc
+    parsed_url: ParseResult = urlparse(url)
+    parsed_check_url: ParseResult = urlparse(check_url)
+
+    if parsed_url.netloc != parsed_check_url.netloc:
+        return False
+    if not _is_web_page(parsed_check_url):
+        return False
+
+    url_path = PurePosixPath(parsed_url.path)
+    check_url_path = PurePosixPath(parsed_check_url.path)
+
+    # Must match the base path or be a deeper subpath
+    return url_path == check_url_path or url_path in check_url_path.parents
 
 
 def normalise_url(url: str) -> str:
@@ -99,7 +110,7 @@ def extract_links(
 
         # Filter by internal domain if requested
         if internal_only and not is_internal_web_page(url, check_url=absolute_url):
-            continue
+            continue  # TODO only get child URLs
 
         links.add(normalise_url(absolute_url))
 

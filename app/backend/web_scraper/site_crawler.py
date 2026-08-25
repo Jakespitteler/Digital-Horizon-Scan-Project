@@ -111,7 +111,7 @@ async def crawl_site(
         batch_size: int = min(len(queue), max_pages - len(visited))
         batch: list[str] = queue[:batch_size]
         queue = queue[batch_size:]
-        # TODO only get child URLs
+
         tasks: Iterator[Awaitable[tuple[str, list[str], int | None]]] = (
             fetch_and_extract(client, current_url, semaphore, delay) for current_url in batch
         )
