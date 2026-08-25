@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import repository
 from app.db.schema import DBWebsite
 from app.models.critical_page_models import CriticalPageCreate
-from app.models.internal_link_models import InternalLinkCreate
+from app.models.internal_link_models import InternalLinkCreateBatch
 from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
 from app.services.critical_page_service import CriticalPageService
 from app.services.internal_link_service import InternalLinkService
@@ -79,13 +79,12 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
                 for critical_page in model_create.critical_pages
             ]
         if model_create.internal_links:
-            [
-                InternalLinkService(self._db).create(
-                    InternalLinkCreate(website_id=website_record.id, **internal_link.model_dump())
+            InternalLinkService(self._db).create_batch(
+                model_create_batch=InternalLinkCreateBatch(
+                    urls=model_create.internal_links,
+                    website_id=website_record.id,
                 )
-                for internal_link in model_create.internal_links
-            ]
-            # TODO Add ability to insert a batch
+            )
 
         return WebsiteRead.model_validate(website_record)
 

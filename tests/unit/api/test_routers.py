@@ -169,3 +169,35 @@ class TestInternalLinkRouter(TestCRUDRouters):
     )
     model_update = internal_link_models.InternalLinkUpdate(url="https://www.test_website.com/updated_internal_link")
     fixture_name = "test_internal_link"
+
+    def test_create_batch_internal_links(
+        self,
+        api_client: TestClient,
+        test_website: website_models.WebsiteRead,
+    ) -> None:
+        """
+        Tests creating multiple internal links in batch via the router endpoint.
+
+        Args:
+            api_client: The FastAPI test client.
+            test_website: An existing website fixture for the foreign key.
+        """
+        batch_payload = internal_link_models.InternalLinkCreateBatch(
+            urls=[
+                "https://www.test_website.com/batch_link_1",
+                "https://www.test_website.com/batch_link_2",
+            ],
+            website_id=test_website.id,
+        )
+
+        response = api_client.post(
+            url=f"{self.prefix}/batch",
+            json=batch_payload.model_dump(mode="json"),
+        )
+
+        assert response.status_code == 201, response.text
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["url"] == "https://www.test_website.com/batch_link_1"
+        assert data[1]["url"] == "https://www.test_website.com/batch_link_2"
+        assert data[0]["website_id"] == str(test_website.id)

@@ -1,16 +1,16 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.critical_page_models import CriticalPageCreateNoWebsite, CriticalPageRead
-from app.models.internal_link_models import InternalLinkCreateNoWebsite, InternalLinkRead
+from app.models.critical_page_models import CriticalPageBase, CriticalPageRead
+from app.models.internal_link_models import InternalLinkRead
 from app.utils.field_types import URLString
 
 
 class WebsiteCreate(BaseModel):
     url: URLString
-    critical_pages: list[CriticalPageCreateNoWebsite]
-    internal_links: list[InternalLinkCreateNoWebsite]
+    critical_pages: list[CriticalPageBase] = Field(default_factory=list[CriticalPageBase])
+    internal_links: list[URLString] = Field(default_factory=list[URLString])
 
 
 class WebsiteRead(BaseModel):

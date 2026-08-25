@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.errors import NotFoundError
 from app.db.schema import DBWebsite
+from app.models.critical_page_models import CriticalPageBase
 from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
 from app.services.website_service import WebsiteService
 
@@ -45,9 +46,28 @@ def test_create_website(session: Session) -> None:
     Args:
         session: The database session fixture.
     """
+    website_details = WebsiteCreate(url="https://www.test_website.com")
+
+    created_website: WebsiteRead = WebsiteService(session).create(website_details)
+    assert created_website.id is not None
+    assert created_website.url == website_details.url
+
+    fetched_website: WebsiteRead = WebsiteService(session).get(id=created_website.id)
+    assert fetched_website.url == website_details.url
+
+
+def test_create_website_with_links_and_critical_pages(session: Session) -> None:
+    """
+    Tests creating a new website with basic details.
+
+    Args:
+        session: The database session fixture.
+    """
     website_details = WebsiteCreate(
-        url="https://www.test_website.com", critical_pages=[], internal_links=[]
-    )  # TODO add test with links and critical pages
+        url="https://www.test_website.com",
+        critical_pages=[CriticalPageBase(url="https://www.test_website.com/critical_page")],
+        internal_links=["https://www.test_website.com/internal_link"],
+    )
 
     created_website: WebsiteRead = WebsiteService(session).create(website_details)
     assert created_website.id is not None

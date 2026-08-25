@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.db import repository
 from app.db.schema import DBInternalLink
-from app.models.internal_link_models import InternalLinkCreate, InternalLinkRead, InternalLinkUpdate
+from app.models.internal_link_models import (
+    InternalLinkCreate,
+    InternalLinkCreateBatch,
+    InternalLinkRead,
+    InternalLinkUpdate,
+)
 from app.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -69,6 +74,27 @@ class InternalLinkService(CRUDService[InternalLinkRead, InternalLinkCreate, Inte
         internal_link_record: DBInternalLink = DBInternalLink(**model_create.model_dump())
         repository.add(self._db, record=internal_link_record)
         return InternalLinkRead.model_validate(internal_link_record)
+
+    def create_batch(self, model_create_batch: InternalLinkCreateBatch) -> Sequence[InternalLinkRead]:
+        """
+        Creates multiple new internal_link records in batch.
+
+        Args:
+            models_create: The sequence of internal_link details to create.
+
+        Raises:
+            IntegrityError: If any internal_link violates database constraints.
+
+        Returns:
+            The sequence of created internal_link records.
+        """
+        internal_link_records = [
+            DBInternalLink(url=url, website_id=model_create_batch.website_id) for url in model_create_batch.urls
+        ]
+
+        repository.batch_add(self._db, records=internal_link_records)
+
+        return [InternalLinkRead.model_validate(record) for record in internal_link_records]
 
     def update(self, id: uuid.UUID, model_update: InternalLinkUpdate) -> InternalLinkRead:
         """

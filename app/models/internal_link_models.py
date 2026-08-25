@@ -10,8 +10,9 @@ class InternalLinkCreate(BaseModel):
     website_id: uuid.UUID
 
 
-class InternalLinkCreateNoWebsite(BaseModel):
-    url: URLString
+class InternalLinkCreateBatch(BaseModel):
+    urls: list[URLString]
+    website_id: uuid.UUID
 
 
 class InternalLinkRead(BaseModel):

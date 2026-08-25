@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.db.errors import NotFoundError
 from app.db.schema import DBInternalLink, DBWebsite
-from app.models.internal_link_models import InternalLinkCreate, InternalLinkRead, InternalLinkUpdate
+from app.models.internal_link_models import (
+    InternalLinkCreate,
+    InternalLinkCreateBatch,
+    InternalLinkRead,
+    InternalLinkUpdate,
+)
 from app.services.internal_link_service import InternalLinkService
 
 
@@ -56,6 +61,34 @@ def test_create_internal_link(session: Session, test_website: DBWebsite) -> None
 
     fetched_internal_link: InternalLinkRead = InternalLinkService(session).get(id=created_internal_link.id)
     assert fetched_internal_link.url == internal_link_details.url
+
+
+def test_create_batch_internal_links(session: Session, test_website: DBWebsite) -> None:
+    """
+    Tests creating multiple internal_links in batch using a shared website ID.
+
+    Args:
+        session: The database session fixture.
+        test_website: The test website record.
+    """
+    batch_details = InternalLinkCreateBatch(
+        urls=[
+            "https://www.test_website.com/batch_link_1",
+            "https://www.test_website.com/batch_link_2",
+        ],
+        website_id=test_website.id,
+    )
+
+    created_links: Sequence[InternalLinkRead] = InternalLinkService(session).create_batch(batch_details)
+
+    assert len(created_links) == 2
+    for created_link, url in zip(created_links, batch_details.urls, strict=True):
+        assert created_link.id is not None
+        assert created_link.url == url
+        assert created_link.website_id == test_website.id
+
+        fetched_link = InternalLinkService(session).get(id=created_link.id)
+        assert fetched_link.url == url
 
 
 def test_update_internal_link(session: Session, test_internal_link: DBInternalLink) -> None:
