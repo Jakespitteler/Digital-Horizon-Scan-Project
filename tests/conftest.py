@@ -116,7 +116,11 @@ def test_record(session: Session) -> DBTestTable:
 def test_website(session: Session) -> schema.DBWebsite:
     return _create_and_add(
         session,
-        record=schema.DBWebsite(url="https://www.test_website.com"),
+        record=schema.DBWebsite(
+            url="https://www.test_website.com",
+            recommended_delay=0,
+            recommended_concurrent=30,
+        ),
     )
 
 
@@ -126,9 +130,6 @@ def test_critical_page(session: Session, test_website: schema.DBWebsite) -> sche
         session,
         record=schema.DBCriticalPage(
             url=f"{test_website.url}/test_critical_page",
-            links=[],
-            documents=[],
-            text_body="",
             website_id=test_website.id,
         ),
     )

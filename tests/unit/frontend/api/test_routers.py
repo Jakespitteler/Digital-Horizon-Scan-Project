@@ -152,12 +152,11 @@ class TestCriticalPageRouter(TestCRUDRouters):
     prefix = routers.CRITICAL_PAGE_ROUTER.prefix
     model_create = critical_page_models.CriticalPageCreate(
         url="https://www.test_website.com/test_critical_page",
-        links=[],
-        documents=[],
-        text_body="",
         website_id=uuid.uuid4(),
     )
-    model_update = critical_page_models.CriticalPageUpdate(url="https://www.test_website.com/updated_critical_page")
+    model_update = critical_page_models.CriticalPageUpdate(
+        links=["https://www.test_website.com/updated_critical_page_link"]
+    )
     fixture_name = "test_critical_page"
 
 

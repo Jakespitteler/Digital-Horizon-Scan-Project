@@ -11,38 +11,45 @@
         <h1>{{ heading }}</h1>
         <p>{{ message }}</p>
     </div>
-    <h2>Crawler Control Panel</h2>
-    
-    <form action="/crawl" method="post">
+
+    <h2>Add Website</h2>
+    <form action="/add/website" method="post">
         <div>
-            <label for="url">Target URL:</label><br>
-            <input type="text" id="url" name="url" value="{{ url | default('https://www.teqsa.gov.au/') }}" required>
-            <label for="max_pages">Max Pages:</label><br>
-            <input type="text" id="max_pages" name="max_pages" value="{{ max_pages | default('5000') }}" required>
-            <label for="max_concurrent">Max Concurrent:</label><br>
-            <input type="text" id="max_concurrent" name="max_concurrent" value="{{ max_concurrent | default('30') }}" required>
-            <label for="delay">Delay:</label><br>
-            <input type="text" id="delay" name="delay" value="{{ delay | default('0.5') }}" required>
+            <label for="url">URL:</label>
+            <input type="text" id="url" name="url" required>
+            <label for="url">Delay:</label>
+            <input type="text" id="delay" name="delay">
+            <label for="url">Concurrent:</label>
+            <input type="text" id="concurrent" name="concurrent">
         </div>
-        <button type="submit">Run Crawler</button>
+    <button type="submit">Add Website</button>
     </form>
 
-    <hr>
-
-    {% if links is not none %}
+    {% if websites is not none %}
     <div>
-        <h3>Discovered Links (Total: {{ links | length }})</h3>
+        <h3>Monitored Websites</h3>
         
-        {% if links | length > 0 %}
+        {% if websites | length > 0 %}
         <ul>
-            {% for link in links %}
-            <li><a href="{{ link }}" target="_blank">{{ link }}</a></li>
+            {% for website in websites %}
+            <li><a href="{{ website }}" target="_blank">{{ website }}</a></li>
             {% endfor %}
         </ul>
         {% else %}
-        <p>No links found or crawler returned an empty set.</p>
+        <p>No websites being monitored.</p>
         {% endif %}
     </div>
     {% endif %}
+
+    <h2>Run Scanner</h2>
+    <form action="/scanner" method="post">
+        <div>
+            <label for="recipient_email">Recipient Email:</label><br>
+            <input type="text" id="recipient_email" name="recipient_email" value="{{ recipient_email | default('user@example.com') }}" required>
+        </div>
+        <button type="submit">Run Scan</button>
+    </form>
+    <hr>
+
 </body>
 </html>

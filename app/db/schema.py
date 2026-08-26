@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, ForeignKey, String
+from sqlalchemy import JSON, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.core import Base
@@ -27,6 +27,8 @@ class DBWebsite(Base):
     __tablename__ = "websites"
 
     url: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    recommended_delay: Mapped[float] = mapped_column(Float, nullable=False)
+    recommended_concurrent: Mapped[int] = mapped_column(Integer, nullable=False)
     internal_links: Mapped[list["DBInternalLink"]] = relationship(
         back_populates="website",
         cascade="all, delete-orphan",

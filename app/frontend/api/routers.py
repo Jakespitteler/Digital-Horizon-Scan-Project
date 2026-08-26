@@ -3,13 +3,12 @@ from collections.abc import Sequence
 from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from httpx2 import AsyncClient
 
-from app.backend.web_scraper.site_crawler import crawl_site
 from app.db.models import critical_page_models, internal_link_models, website_models
 from app.db.services import critical_page_service, internal_link_service, website_service
 from app.frontend.api.crud_router_factory import create_crud_router
 from app.frontend.api.dependencies import SessionDep
+from app.scanner import run_website_scanner
 
 ROOT_ROUTER = APIRouter()
 templates = Jinja2Templates(directory="app/frontend/templates")
@@ -21,40 +20,56 @@ templates = Jinja2Templates(directory="app/frontend/templates")
 
 
 @ROOT_ROUTER.get("/", response_model=str)
-def get_root(request: Request) -> HTMLResponse:
+def get_root(session: SessionDep, request: Request) -> HTMLResponse:
     """
     Root endpoint to check if the server is running.
 
     Returns:
         A message indicating the server is running.
     """
-    context: dict[str, str] = {
+    all_websites: Sequence[website_models.WebsiteRead] = website_service.WebsiteService(session).get_all()
+    context: dict[str, str | list[str]] = {
         "title": "HomePage",
         "heading": "Digital Horizon Scan",
         "message": "Server is Running.",
+        "websites": [website.url for website in all_websites],
     }
     return templates.TemplateResponse(request=request, name="index.html", context=context)
 
 
-@ROOT_ROUTER.post("/crawl", response_class=HTMLResponse)
-async def run_scraper(
+@ROOT_ROUTER.post("/add/website", response_class=HTMLResponse)
+async def add_website(
+    session: SessionDep,
     request: Request,
     url: str = Form(...),
-    max_pages: int = Form(5000),
-    max_concurrent: int = Form(5),
-    delay: float = Form(1),
+    delay: float | None = Form(None),
+    concurrent: int | None = Form(None),
 ):
-    """Triggers the scraper from the UI form submission."""
-    async with AsyncClient() as client:
-        discovered_links: set[str] = await crawl_site(
-            client=client,
+    """Triggers the app from the UI form submission."""
+    website_service.WebsiteService(session).create(
+        website_models.WebsiteCreate(
             url=url,
-            max_pages=max_pages,
-            max_concurrent=max_concurrent,
-            delay=delay,
+            recommended_delay=delay or 1,
+            recommended_concurrent=concurrent or 5,
         )
+    )
+    all_websites: Sequence[website_models.WebsiteRead] = website_service.WebsiteService(session).get_all()
+    context: dict[str, str | list[str]] = {"websites": [website.url for website in all_websites]}
+    # TODO Result is not displayed
+    return templates.TemplateResponse(request=request, name="index.html", context=context)
 
-    context: dict[str, str | list[str]] = {"links": list(discovered_links), "url": url}
+
+@ROOT_ROUTER.post("/scanner", response_class=HTMLResponse)
+async def run_scanner(
+    session: SessionDep,
+    request: Request,
+    recipient_email: str = Form(...),
+):
+    """Triggers the app from the UI form submission."""
+    result_text: str = await run_website_scanner(session, recipient_email)
+
+    context: dict[str, str | list[str]] = {"result": result_text}
+    # TODO Result is not displayed
     return templates.TemplateResponse(request=request, name="index.html", context=context)
 
 

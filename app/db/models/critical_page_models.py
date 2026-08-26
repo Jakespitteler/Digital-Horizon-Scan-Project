@@ -20,9 +20,9 @@ class CriticalPageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     url: URLString
-    links: list[URLString]
-    documents: list[URLString]
-    text_body: str
+    links: list[URLString] | None
+    documents: list[URLString] | None
+    text_body: str | None
     website_id: uuid.UUID
 
 
@@ -30,3 +30,16 @@ class CriticalPageUpdate(BaseModel):
     links: list[URLString] | None = None
     documents: list[URLString] | None = None
     text_body: str | None = None
+
+
+class CriticalPageState(BaseModel):
+    id: uuid.UUID
+    url: URLString
+    updates: CriticalPageUpdate = CriticalPageUpdate()
+
+    links_added: list[str] | None = None
+    links_removed: list[str] | None = None
+    documents_added: list[str] | None = None
+    documents_removed: list[str] | None = None
+    text_added: list[str] | None = None
+    text_removed: list[str] | None = None
