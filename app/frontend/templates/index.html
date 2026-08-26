@@ -16,7 +16,13 @@
     <form action="/crawl" method="post">
         <div>
             <label for="url">Target URL:</label><br>
-            <input type="text" id="url" name="url" value="{{ url | default('') }}" required>
+            <input type="text" id="url" name="url" value="{{ url | default('https://www.teqsa.gov.au/') }}" required>
+            <label for="max_pages">Max Pages:</label><br>
+            <input type="text" id="max_pages" name="max_pages" value="{{ max_pages | default('5000') }}" required>
+            <label for="max_concurrent">Max Concurrent:</label><br>
+            <input type="text" id="max_concurrent" name="max_concurrent" value="{{ max_concurrent | default('30') }}" required>
+            <label for="delay">Delay:</label><br>
+            <input type="text" id="delay" name="delay" value="{{ delay | default('0.5') }}" required>
         </div>
         <button type="submit">Run Crawler</button>
     </form>

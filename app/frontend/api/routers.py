@@ -37,10 +37,22 @@ def get_root(request: Request) -> HTMLResponse:
 
 
 @ROOT_ROUTER.post("/crawl", response_class=HTMLResponse)
-async def run_scraper(request: Request, url: str = Form(...)):
+async def run_scraper(
+    request: Request,
+    url: str = Form(...),
+    max_pages: int = Form(5000),
+    max_concurrent: int = Form(5),
+    delay: float = Form(1),
+):
     """Triggers the scraper from the UI form submission."""
     async with AsyncClient() as client:
-        discovered_links: set[str] = await crawl_site(client=client, url=url)
+        discovered_links: set[str] = await crawl_site(
+            client=client,
+            url=url,
+            max_pages=max_pages,
+            max_concurrent=max_concurrent,
+            delay=delay,
+        )
 
     context: dict[str, str | list[str]] = {"links": list(discovered_links), "url": url}
     return templates.TemplateResponse(request=request, name="index.html", context=context)
