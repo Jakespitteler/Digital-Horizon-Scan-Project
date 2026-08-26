@@ -119,6 +119,45 @@ def test_add_raises_integrity_error(session: Session, test_record: DBTestTable) 
     assert "unique constraint" in str(e.value)
 
 
+def test_batch_add(session: Session) -> None:
+    """
+    Tests adding multiple records in batch.
+
+    Args:
+        session: The database session fixture.
+    """
+    records = [
+        DBTestTable(name="Batch Record 1"),
+        DBTestTable(name="Batch Record 2"),
+        DBTestTable(name="Batch Record 3"),
+    ]
+
+    repository.batch_add(session, records)
+
+    for record in records:
+        assert record.id is not None
+        fetched_record: DBTestTable = repository.get(session, table=DBTestTable, id=record.id)
+        assert fetched_record.name == record.name
+
+
+def test_batch_add_raises_integrity_error(session: Session, test_record: DBTestTable) -> None:
+    """
+    Tests that batch_add raises IntegrityError if unique constraints are violated.
+
+    Args:
+        session: The database session fixture.
+        test_record: The test record.
+    """
+    records = [
+        DBTestTable(name="Valid Batch Record"),
+        DBTestTable(name=test_record.name),  # Duplicate name
+    ]
+
+    with pytest.raises(IntegrityError) as e:
+        repository.batch_add(session, records)
+    assert "unique constraint" in str(e.value)
+
+
 def test_update(session: Session, test_record: DBTestTable) -> None:
     """
     Tests updating a record.

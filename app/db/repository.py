@@ -102,6 +102,33 @@ def add(session: Session, record: Base) -> None:
     logger.info(f"Records added to database successfully. {record.__tablename__=}, {record.id=}")
 
 
+def batch_add[DBTable: Base](session: Session, records: Sequence[DBTable]) -> None:
+    """
+    Adds multiple new records to the table in batch.
+
+    Args:
+        session: The database session.
+        records: The sequence of records to add.
+
+    Raises:
+        IntegrityError: If any record violates unique constraints.
+    """
+    try:
+        session.add_all(records)
+        session.flush()
+    except SQLIntegrityError as e:
+        tablename = records[0].__tablename__ if records else "unknown"
+        logger.error(f"Failed to bulk add records to database, rolling back. {tablename=}")
+        session.rollback()
+        raise IntegrityError() from e
+
+    for record in records:
+        session.refresh(record)
+
+    tablename = records[0].__tablename__ if records else "unknown"
+    logger.info(f"Successfully bulk added {len(records)} records to database. {tablename=}")
+
+
 def update[DBTable: Base](session: Session, record: DBTable, updates: dict[str, Any]) -> DBTable:
     """
     Updates the fields of an existing record.
