@@ -12,44 +12,5 @@
         <p>{{ message }}</p>
     </div>
 
-    <h2>Add Website</h2>
-    <form action="/add/website" method="post">
-        <div>
-            <label for="url">URL:</label>
-            <input type="text" id="url" name="url" required>
-            <label for="url">Delay:</label>
-            <input type="text" id="delay" name="delay">
-            <label for="url">Concurrent:</label>
-            <input type="text" id="concurrent" name="concurrent">
-        </div>
-    <button type="submit">Add Website</button>
-    </form>
-
-    {% if websites is not none %}
-    <div>
-        <h3>Monitored Websites</h3>
-        
-        {% if websites | length > 0 %}
-        <ul>
-            {% for website in websites %}
-            <li><a href="{{ website }}" target="_blank">{{ website }}</a></li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p>No websites being monitored.</p>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    <h2>Run Scanner</h2>
-    <form action="/scanner" method="post">
-        <div>
-            <label for="recipient_email">Recipient Email:</label><br>
-            <input type="text" id="recipient_email" name="recipient_email" value="{{ recipient_email | default('user@example.com') }}" required>
-        </div>
-        <button type="submit">Run Scan</button>
-    </form>
-    <hr>
-
 </body>
 </html>

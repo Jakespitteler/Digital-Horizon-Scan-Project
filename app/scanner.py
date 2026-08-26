@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from collections.abc import Sequence
 
 from httpx2 import AsyncClient
 from pydantic import SecretStr
@@ -10,9 +11,10 @@ from app.backend.web_scraper.errors import TrafficError, WebConnectionError
 from app.backend.web_scraper.site_crawler import crawl_site
 from app.backend.web_scraper.utils import extract_links, fetch_content_from_url
 from app.core.config import config
+from app.db.errors import NotFoundError
 from app.db.models.critical_page_models import CriticalPageRead, CriticalPageState
 from app.db.models.internal_link_models import InternalLinkCreate, InternalLinkRead
-from app.db.models.website_models import WebsiteRead, WebsiteState, WebsiteUpdate
+from app.db.models.website_models import WebsiteCreate, WebsiteRead, WebsiteState, WebsiteUpdate
 from app.db.services.critical_page_service import CriticalPageService
 from app.db.services.internal_link_service import InternalLinkService
 from app.db.services.website_service import WebsiteService
@@ -137,9 +139,18 @@ def update_database_internal_links(
             InternalLinkService(session).delete(id=internal_link.id)
 
 
-async def run_website_scanner(session: Session, recipient_email: str) -> str:
+async def run_website_scanner(session: Session, recipient_email: str, url: str | None = None) -> str:
     async with AsyncClient() as client:
-        for website in WebsiteService(session).get_all():
+        websites: Sequence[WebsiteRead]
+        if url:
+            try:
+                websites = [WebsiteService(session).get_by_url(url)]
+            except NotFoundError:
+                websites = [WebsiteService(session).create(model_create=WebsiteCreate(url=url))]
+        else:
+            websites = WebsiteService(session).get_all()
+
+        for website in websites:
             website_state: WebsiteState = await scan_website(session, client, website)
 
             text_body: str = format_notification_body(website_state)

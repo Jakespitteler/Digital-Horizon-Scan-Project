@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.db import repository
+from app.db.errors import NotFoundError
 from app.db.models.critical_page_models import CriticalPageCreate
 from app.db.models.internal_link_models import InternalLinkCreateBatch
 from app.db.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
@@ -59,6 +60,30 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
             relations=[DBWebsite.internal_links, DBWebsite.critical_pages],
         )
         return WebsiteRead.model_validate(website_record)
+
+    def get_by_url(self, url: str) -> WebsiteRead:
+        """
+        Retrieves a single website record by its url.
+
+        Args:
+            url: The url of the website to retrieve.
+
+        Raises:
+            NotFoundError: If no website exists with the provided URL.
+
+        Returns:
+            The retrieved website.
+        """
+        website_records: Sequence[DBWebsite] = repository.get_list(
+            self._db,
+            table=DBWebsite,
+            attributes={"url": url},
+            limit=1,
+        )
+        if not website_records:
+            raise NotFoundError(attributes={"url": url})
+
+        return WebsiteRead.model_validate(website_records[0])
 
     def create(self, model_create: WebsiteCreate) -> WebsiteRead:
         """

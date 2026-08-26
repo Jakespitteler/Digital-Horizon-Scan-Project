@@ -37,35 +37,15 @@ def get_root(session: SessionDep, request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="index.html", context=context)
 
 
-@ROOT_ROUTER.post("/add/website", response_class=HTMLResponse)
-async def add_website(
-    session: SessionDep,
-    request: Request,
-    url: str = Form(...),
-    delay: float | None = Form(None),
-    concurrent: int | None = Form(None),
-):
-    """Triggers the app from the UI form submission."""
-    model_web = website_models.WebsiteCreate(
-        url=url,
-        recommended_delay=delay if delay is not None else 1,  # TODO there's probably a better place to do this
-        recommended_concurrent=concurrent if concurrent is not None and concurrent > 0 else 5,
-    )
-    website_service.WebsiteService(session).create(model_web)
-    all_websites: Sequence[website_models.WebsiteRead] = website_service.WebsiteService(session).get_all()
-    context: dict[str, str | list[str]] = {"websites": [website.url for website in all_websites]}
-    # TODO Result is not displayed
-    return templates.TemplateResponse(request=request, name="index.html", context=context)
-
-
 @ROOT_ROUTER.post("/scanner", response_class=HTMLResponse)
 async def run_scanner(
     session: SessionDep,
     request: Request,
     recipient_email: str = Form(...),
+    url: str | None = Form(None),
 ):
     """Triggers the app from the UI form submission."""
-    result_text: str = await run_website_scanner(session, recipient_email)
+    result_text: str = await run_website_scanner(session, recipient_email, url)
 
     context: dict[str, str | list[str]] = {"result": result_text}
     # TODO Result is not displayed
