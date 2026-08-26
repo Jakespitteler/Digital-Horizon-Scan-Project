@@ -4,19 +4,17 @@ from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.db.errors import NotFoundError
 from app.db.models import critical_page_models, internal_link_models, website_models
 from app.db.services import critical_page_service, internal_link_service, website_service
 from app.frontend.api.crud_router_factory import create_crud_router
 from app.frontend.api.dependencies import SessionDep
 from app.scanner import run_website_scanner
 
-ROOT_ROUTER = APIRouter()
 templates = Jinja2Templates(directory="app/frontend/templates")
 
 
-# ======================
-# Views
-# ======================
+ROOT_ROUTER = APIRouter()
 
 
 @ROOT_ROUTER.get("/", response_model=str)
@@ -37,16 +35,44 @@ def get_root(session: SessionDep, request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="index.html", context=context)
 
 
-@ROOT_ROUTER.post("/scanner", response_class=HTMLResponse)
+SCANNER_ROUTER = APIRouter(prefix="/scanner")
+
+
+@SCANNER_ROUTER.post("/run", response_class=HTMLResponse)
+async def run_scanner_on_website(
+    session: SessionDep,
+    request: Request,
+    recipient_email: str = Form(...),
+    url: str = Form(...),
+    max_pages: int | None = Form(...),
+    delay: float | None = Form(...),
+    concurrent: int | None = Form(...),
+):
+    """Triggers the app from the UI form submission."""
+    try:
+        website: website_models.WebsiteRead = website_service.WebsiteService(session).get_by_url(url)
+    except NotFoundError:
+        website: website_models.WebsiteRead = website_service.WebsiteService(session).create(
+            model_create=website_models.WebsiteCreate(url=url)
+        )
+    result_text: str = await run_website_scanner(session, website, recipient_email, max_pages, delay, concurrent)
+
+    context: dict[str, str] = {"result": result_text}
+    # TODO Result is not displayed
+    return templates.TemplateResponse(request=request, name="index.html", context=context)
+
+
+@SCANNER_ROUTER.post("/run_all", response_class=HTMLResponse)
 async def run_scanner(
     session: SessionDep,
     request: Request,
     recipient_email: str = Form(...),
-    url: str | None = Form(None),
 ):
     """Triggers the app from the UI form submission."""
-    result_text: str = await run_website_scanner(session, recipient_email, url)
-
+    result_text: list[str] = [
+        await run_website_scanner(session, website=website, recipient_email=recipient_email)
+        for website in website_service.WebsiteService(session).get_all()
+    ]
     context: dict[str, str | list[str]] = {"result": result_text}
     # TODO Result is not displayed
     return templates.TemplateResponse(request=request, name="index.html", context=context)
