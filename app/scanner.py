@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -11,7 +12,7 @@ from app.backend.web_scraper.utils import extract_links, fetch_content_from_url
 from app.core.config import config
 from app.db.models.critical_page_models import CriticalPageRead, CriticalPageState
 from app.db.models.internal_link_models import InternalLinkCreate, InternalLinkRead
-from app.db.models.website_models import WebsiteRead, WebsiteState
+from app.db.models.website_models import WebsiteRead, WebsiteState, WebsiteUpdate
 from app.db.services.critical_page_service import CriticalPageService
 from app.db.services.internal_link_service import InternalLinkService
 from app.db.services.website_service import WebsiteService
@@ -72,7 +73,7 @@ async def scan_critical_page(client: AsyncClient, stored_page: CriticalPageRead)
     return state
 
 
-async def scan_website(client: AsyncClient, stored_website: WebsiteRead) -> WebsiteState:
+async def scan_website(session: Session, client: AsyncClient, stored_website: WebsiteRead) -> WebsiteState:
     state = WebsiteState(id=stored_website.id, url=stored_website.url)
 
     for critical_page in stored_website.critical_pages:
@@ -89,16 +90,25 @@ async def scan_website(client: AsyncClient, stored_website: WebsiteRead) -> Webs
                 batch_403_threshold=BATCH_402_THRESHOLD,
             )
         )
-    except TrafficError as e:  # TODO deal with raised errors
-        logger.error(f"{e}")
-        # increase delay or lower concurrent
-        # update database and reassign stored website
-        # wait time
-        # try again
+
+    except TrafficError as e:  # TODO Make sure we are actually catching all of the errors and reacting accordingly
+        logger.error(f"Too many requests for website, waiting and reducing speed then trying again. {e}")
+        stored_website = WebsiteService(session).update(
+            id=stored_website.id,
+            model_update=WebsiteUpdate(  # TODO Probably not the best method
+                recommended_delay=stored_website.recommended_delay + 0.5,
+                recommended_concurrent=stored_website.recommended_concurrent // 2
+                if stored_website.recommended_concurrent > 1
+                else stored_website.recommended_concurrent,
+            ),
+        )
+        await asyncio.sleep(5 * 60)  # TODO  maybe test a fetch and wait till open
+        return await scan_website(session, client, stored_website)
+
     except WebConnectionError as e:
-        logger.error(f"{e}")
-        # wait time
-        # try again
+        logger.error(f"Lost connection, waiting and trying again. {e}")
+        await asyncio.sleep(120)  # TODO  maybe test a fetch and wait till open
+        return await scan_website(session, client, stored_website)
 
     state.new_internal_links, state.removed_internal_links = find_link_difference(
         previous_state=[link.url for link in stored_website.internal_links],
@@ -130,7 +140,7 @@ def update_database_internal_links(
 async def run_website_scanner(session: Session, recipient_email: str) -> str:
     async with AsyncClient() as client:
         for website in WebsiteService(session).get_all():
-            website_state: WebsiteState = await scan_website(client, website)
+            website_state: WebsiteState = await scan_website(session, client, website)
 
             text_body: str = format_notification_body(website_state)
             update_database_critical_pages(session, website_state.critical_page_states)
