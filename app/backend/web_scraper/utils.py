@@ -22,20 +22,20 @@ def _is_web_page(parsed_url: ParseResult) -> bool:
     return PurePosixPath(parsed_url.path).suffix.lower() in WEB_PAGE_EXTENSIONS
 
 
-def is_internal_web_page(url: str, check_url: str) -> bool:
-    parsed_url: ParseResult = urlparse(url)
+def is_internal_web_page(base_url: str, check_url: str) -> bool:
+    parsed_base_url: ParseResult = urlparse(base_url)
     parsed_check_url: ParseResult = urlparse(check_url)
 
-    if parsed_url.netloc != parsed_check_url.netloc:
+    if parsed_base_url.netloc != parsed_check_url.netloc:
         return False
     if not _is_web_page(parsed_check_url):
         return False
 
-    url_path = PurePosixPath(parsed_url.path)
+    base_url_path = PurePosixPath(parsed_base_url.path)
     check_url_path = PurePosixPath(parsed_check_url.path)
 
     # Must match the base path or be a deeper subpath
-    return url_path == check_url_path or url_path in check_url_path.parents
+    return base_url_path == check_url_path or base_url_path in check_url_path.parents
 
 
 def normalise_url(url: str) -> str:
@@ -77,6 +77,7 @@ def extract_links(
     url: str,
     html_content: str,
     internal_only: bool = False,
+    base_url: str | None = None,
 ) -> list[str]:
     """Extracts, resolves, and normalises unique links from HTML content.
 
@@ -92,6 +93,8 @@ def extract_links(
         ValueError: If the url is improperly formatted and cannot be parsed correctly.
         TypeError: If an href attribute is not a string.
     """
+    if not base_url:
+        base_url = url
     parsed_base: ParseResult = urlparse(url)
     if not parsed_base.netloc:
         raise ValueError(f"Invalid url provided: {url}")
@@ -108,7 +111,7 @@ def extract_links(
         absolute_url: str = urljoin(url, href)
 
         # Filter by internal domain if requested
-        if internal_only and not is_internal_web_page(url, check_url=absolute_url):
+        if internal_only and not is_internal_web_page(base_url, check_url=absolute_url):
             continue  # TODO only get child URLs
 
         links.add(normalise_url(absolute_url))

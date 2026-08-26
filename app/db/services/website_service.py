@@ -52,7 +52,12 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
         Returns:
             The retrieved website.
         """
-        website_record: DBWebsite = repository.get(self._db, table=DBWebsite, id=id)
+        website_record: DBWebsite = repository.get(
+            self._db,
+            table=DBWebsite,
+            id=id,
+            relations=[DBWebsite.internal_links, DBWebsite.critical_pages],
+        )
         return WebsiteRead.model_validate(website_record)
 
     def create(self, model_create: WebsiteCreate) -> WebsiteRead:
@@ -103,9 +108,11 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
         Returns:
             The updated website.
         """
-        website_record: DBWebsite = repository.get(self._db, table=DBWebsite, id=id)
+
         website_record = repository.update(
-            self._db, record=website_record, updates=model_update.model_dump(exclude_unset=True)
+            self._db,
+            record=repository.get(self._db, table=DBWebsite, id=id),
+            updates=model_update.model_dump(exclude_unset=True),
         )
         return WebsiteRead.model_validate(website_record)
 
@@ -119,5 +126,5 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
         Raises:
             NotFoundError: If no website exists with the provided ID.
         """
-        repository.get(self._db, table=DBWebsite, id=id)
+        repository.get(self._db, table=DBWebsite, id=id)  # Check if the record exists
         repository.delete(self._db, table=DBWebsite, id=id)

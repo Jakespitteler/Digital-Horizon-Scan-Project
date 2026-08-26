@@ -20,6 +20,7 @@ async def fetch_and_extract(
     url: str,
     semaphore: asyncio.Semaphore,
     delay: float | None = None,
+    base_url: str | None = None,
 ) -> tuple[str, list[str], int | None]:
     """Safely fetches HTML and extracts internal links under a concurrency limit.
 
@@ -37,6 +38,8 @@ async def fetch_and_extract(
         TrafficError: If the server returns a rate-limiting or throttling status code (429, 502, 503, 504).
         WebConnectionError: If a timeout or connection failure occurs.
     """
+    if not base_url:
+        base_url = url
     async with semaphore:
         try:
             if delay:
@@ -46,10 +49,15 @@ async def fetch_and_extract(
             html_content, absolute_url = await fetch_content_from_url(client, url)
 
             # Ensure redirect was not to an external site
-            if not is_internal_web_page(url, check_url=absolute_url):
+            if not is_internal_web_page(base_url, check_url=absolute_url):
                 return url, [], None
 
-            links: list[str] = extract_links(absolute_url, html_content, internal_only=True)
+            links: list[str] = extract_links(
+                base_url=base_url,
+                url=absolute_url,
+                html_content=html_content,
+                internal_only=True,
+            )
 
             logger.debug(f"Successfully extracted {len(links)} internal links from {url=}")
             return absolute_url, links, 200
@@ -113,7 +121,8 @@ async def crawl_site(
         queue = queue[batch_size:]
 
         tasks: Iterator[Awaitable[tuple[str, list[str], int | None]]] = (
-            fetch_and_extract(client, current_url, semaphore, delay) for current_url in batch
+            fetch_and_extract(client=client, base_url=url, url=current_url, semaphore=semaphore, delay=delay)
+            for current_url in batch
         )
         batch_results: list[tuple[str, list[str], int | None]] = await asyncio.gather(*tasks)
 
