@@ -86,8 +86,8 @@ async def crawl_site(
     client: httpx2.AsyncClient,
     url: str,
     max_pages: int = 5000,
-    max_concurrent: int = 30,
-    delay: float = 0.5,
+    max_concurrent: int = 10,
+    delay: float = 0,
     batch_403_threshold: int = 20,
 ) -> set[str]:
     """Crawls a website asynchronously starting from url up to max_pages.
