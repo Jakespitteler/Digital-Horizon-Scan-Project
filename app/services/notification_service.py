@@ -1,18 +1,11 @@
-"""Persistence and orchestration around the notifier.
+"""Persistence around the notifier, which keeps no state of its own.
 
-The notifier is a pure function of its arguments: it is handed a list of
-changes and told when we last emailed, and it remembers nothing. That is
-deliberate -- it keeps the wording testable without a database and stops a mail
-server outage reaching back up the pipeline. The cost is that *something* has
-to do the remembering, and this is it.
+Two things get stored, both per website:
 
-Two facts get stored, both per website:
+    notification_states     when we last ran, when we last emailed
+    pending_notifications   sends that failed, waiting on a retry
 
-  notification_states       when we last ran, when we last emailed
-  pending_notifications     reports whose send failed, waiting on a retry
-
-Nothing here knows how to write an email, and the notifier knows nothing about
-any of this.
+Nothing here writes an email, and the notifier knows nothing about any of it.
 """
 
 import logging
@@ -33,10 +26,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 def _aware(when: datetime | None) -> datetime | None:
     """Re-attach UTC to a timestamp read back from the database.
 
-    SQLite has no timezone-aware column type, so a datetime written as UTC
-    comes back naive. Handing that to the notifier would raise on the
-    `now - last_email_at` comparison, which would take the whole run down. All
-    stored timestamps are UTC by convention, so this just says so again.
+    SQLite has no tz-aware column type, so stored datetimes come back naive and
+    comparing one against `now` raises. Everything is stored as UTC.
     """
     if when is None:
         return None
@@ -75,18 +66,13 @@ class NotificationService:
         return state
 
     def last_email_at(self, website_id: uuid.UUID) -> datetime | None:
-        """When we last emailed about this website, or None if we never have.
-
-        This is the one value the notifier cannot work out for itself, and
-        without it the weekly all-clear never fires.
-        """
+        """When we last emailed about this website. Drives the weekly all-clear."""
         return _aware(self.get_state(website_id).last_email_at)
 
     def has_run_since(self, website_id: uuid.UUID, cutoff: datetime) -> bool:
-        """Whether a notification run has already happened since `cutoff`.
+        """Whether a run has already happened since `cutoff`.
 
-        The scheduler uses this so a restart part-way through the day does not
-        trigger a second check.
+        The scheduler uses this so a restart doesn't trigger a second check.
         """
         last_run_at: datetime | None = _aware(self.get_state(website_id).last_run_at)
         return last_run_at is not None and last_run_at >= cutoff
@@ -94,10 +80,9 @@ class NotificationService:
     def record_run(self, website_id: uuid.UUID, now: datetime, action: str) -> DBNotificationState:
         """Write down that a run happened, and whether it emailed.
 
-        `last_email_at` only moves when something actually went out. A run that
-        found nothing still counts as a run, but it must not reset the weekly
-        all-clear window -- otherwise a quiet site resets its own clock every
-        morning and the all-clear never becomes due.
+        `last_email_at` only moves when something went out. A quiet run still
+        counts as a run, but if it reset the email clock a site that never
+        changes would push its own weekly window back every morning.
 
         Args:
             website_id: The website the run was for.
@@ -145,14 +130,14 @@ class NotificationService:
         return pending
 
     def due_pending(self, now: datetime, limit: int = 100) -> list[DBPendingNotification]:
-        """Parked reports whose next attempt is due.
+        """Parked reports whose next attempt is due, oldest first.
 
         Args:
             now: The current time.
             limit: The maximum number to return.
 
         Returns:
-            The parked reports ready to retry, oldest attempt first.
+            The parked reports ready to retry.
         """
         candidates: Sequence[DBPendingNotification] = repository.get_list(
             self._db, table=DBPendingNotification, limit=limit
@@ -161,20 +146,15 @@ class NotificationService:
         return sorted(due, key=lambda record: _aware(record.next_attempt_at) or now)
 
     def _backoff(self, attempts: int) -> timedelta:
-        """How long to wait before attempt number `attempts` + 1.
-
-        Exponential from retry_base_delay_seconds, capped so the gap between
-        tries never grows past retry_max_delay_seconds.
-        """
+        """Wait before the next attempt. Exponential, capped."""
         seconds = config.retry_base_delay_seconds * (2 ** max(attempts - 1, 0))
         return timedelta(seconds=min(seconds, config.retry_max_delay_seconds))
 
     def record_retry_failure(self, pending: DBPendingNotification, now: datetime) -> bool:
         """Note that a retry failed. Returns whether it will be tried again.
 
-        Gives up after retry_max_attempts and logs an error rather than
-        retrying forever in silence -- at that point a person needs to look at
-        it, and a queue that never drains is worse than a loud failure.
+        Gives up after retry_max_attempts and logs an error. A queue that never
+        drains is worse than a loud failure.
 
         Args:
             pending: The parked report whose retry failed.
@@ -220,7 +200,7 @@ class NotificationService:
         now: datetime | None = None,
         dry_run: bool | None = None,
     ) -> str:
-        """One notification run for one website: send, then record the outcome.
+        """One run for one website: send, then record the outcome.
 
         Args:
             website: The website being reported on.
@@ -229,7 +209,7 @@ class NotificationService:
             dry_run: Overrides the DRY_RUN setting for this call.
 
         Returns:
-            What notify() returned: "digest", "all_clear", "nothing" or "failed".
+            "digest", "all_clear", "nothing" or "failed".
         """
         now = now or datetime.now(UTC)
         action: str = notifier.notify(
@@ -243,8 +223,7 @@ class NotificationService:
         if action == "failed" and changes:
             self.park(website.id, changes, now)
         elif action == "failed":
-            # An all-clear that failed to send is not worth parking: it carries
-            # no changes, and next week's will say the same thing.
+            # Nothing to park, and next week's all-clear says the same thing.
             logger.warning("all-clear send failed for website_id=%s, not parking", website.id)
 
         self.record_run(website.id, now, action)

@@ -1,19 +1,14 @@
 """Background scheduler: drives the notification run, and the scrape once it exists.
 
-Run it with:
-
     python -m app.scheduler.background_scheduler
 
 The notification run happens once a day at a wall clock time (DAILY_RUN_HOUR /
-DAILY_RUN_MINUTE, in REPORT_TIMEZONE) rather than on a repeating interval. An
-interval loop drifts: the wait starts after the task finishes, so the true
-period is interval + however long the run took, and at daily intervals that
-walks the client's report a little later every day. Scheduling against the
-clock has no drift to accumulate.
+DAILY_RUN_MINUTE, in REPORT_TIMEZONE) rather than on an interval. An interval
+loop waits after the task finishes, so the real period is interval + however
+long the run took, and the report walks later every day.
 
-Because it is time-of-day driven rather than "every 24 hours since boot",
-restarts are safe: `last_run_at` is stored per website, so a process that comes
-back up at lunchtime does not fire a second report for a day already covered.
+`last_run_at` is stored per website, so a restart doesn't fire a second report
+for a day already covered.
 """
 
 import asyncio
@@ -47,8 +42,8 @@ def _slot_on(day: datetime, hour: int, minute: int) -> datetime:
 def last_slot_at(now: datetime, hour: int, minute: int, tz: ZoneInfo) -> datetime:
     """The most recent scheduled time at or before `now`, in UTC.
 
-    The run guard compares against this: a website whose last run is at or
-    after it has already been covered for the current day.
+    The run guard compares against this: a website whose last run is at or after
+    it has already been covered.
     """
     local: datetime = now.astimezone(tz)
     slot: datetime = _slot_on(local, hour, minute)
@@ -60,9 +55,8 @@ def last_slot_at(now: datetime, hour: int, minute: int, tz: ZoneInfo) -> datetim
 def next_slot_at(now: datetime, hour: int, minute: int, tz: ZoneInfo) -> datetime:
     """The next scheduled time strictly after `now`, in UTC.
 
-    Computed from the wall clock every time rather than by adding 24 hours to
-    the last run, so the report cannot drift and a daylight saving change moves
-    it by an hour exactly once instead of permanently.
+    Read off the wall clock each time, so nothing drifts and a daylight saving
+    change shifts the run once rather than permanently.
     """
     local: datetime = now.astimezone(tz)
     slot: datetime = _slot_on(local, hour, minute)
@@ -72,14 +66,10 @@ def next_slot_at(now: datetime, hour: int, minute: int, tz: ZoneInfo) -> datetim
 
 
 async def _run_guarded(task_function: Callable[[], Awaitable[None]]) -> None:
-    """Run a task, logging anything it raises rather than letting it escape.
+    """Run a task, logging what it raises instead of letting it escape.
 
-    Without this, one bad morning -- a network blip, a database hiccup -- ends
-    monitoring for good and says nothing: the exception unwinds out of the loop
-    and nobody restarts it.
-
-    Only Exception is caught, so asyncio.CancelledError still stops the loop
-    and Ctrl-C keeps working.
+    Otherwise one bad morning ends monitoring for good and says nothing. Only
+    Exception is caught, so cancellation and Ctrl-C still work.
     """
     name: str = getattr(task_function, "__name__", repr(task_function))
     try:
@@ -91,13 +81,8 @@ async def _run_guarded(task_function: Callable[[], Awaitable[None]]) -> None:
 async def run_loop(interval_seconds: int, task_function: Callable[[], Awaitable[None]]) -> None:
     """Run task_function forever, one go every interval_seconds.
 
-    The time the task itself took is subtracted from the wait, so the period
-    stays put instead of stretching by the task's duration each time. A task
-    that overruns its interval simply starts the next go immediately.
-
-    Used for the scrape loop, which just needs to happen regularly. The
-    notification run uses run_daily_at() instead, because the client reads a
-    timestamp off it.
+    The task's own duration comes off the wait, so the period stays put. Used
+    for the scrape loop; notifications use run_daily_at() instead.
     """
     while True:
         started: float = asyncio.get_running_loop().time()
@@ -115,8 +100,7 @@ async def run_daily_at(
     """Run task_function once a day at a wall clock time.
 
     Fires once on entry so a process started after the day's slot still covers
-    that day; the task's own per-website guard makes that a no-op if the run
-    already happened.
+    that day. The per-website guard makes that a no-op if it already ran.
     """
     await _run_guarded(task_function)
     while True:
@@ -135,27 +119,18 @@ async def run_daily_at(
 def collect_changes(session: Session, website: DBWebsite) -> list[notifier.Change]:
     """What the diff finder found for this website since the last run.
 
-    TODO (diff finder): this is the seam the diff finder plugs into. It holds
-    both versions of a page at the moment it decides one changed, so it is the
-    one that can fill in Change.old_text / Change.new_text and give the client
-    a real before/after. Until it exists there is nothing to report and the run
-    stays quiet -- which is also why nothing is emailed on a fresh database.
+    TODO (diff finder): this is the seam it plugs into. It holds both versions
+    of a page when it decides one changed, so it can also fill in
+    Change.old_text / Change.new_text. Empty until then, so runs stay quiet.
     """
     return []
 
 
 def run_notifications(session: Session, now: datetime | None = None) -> dict[str, int]:
-    """One notification pass over every website. Blocking; call via to_thread.
+    """One notification pass over every website. Blocking, call via to_thread.
 
-    Retries anything parked by a previous failed send first, then runs today's
-    report for each website that has not already had one.
-
-    Args:
-        session: The database session.
-        now: The run time. Defaults to now.
-
-    Returns:
-        A count of each action taken, for logging.
+    Retries parked sends first, then today's report for each website that
+    hasn't had one. Returns a count of each action, for logging.
     """
     now = now or datetime.now(UTC)
     service = NotificationService(session)
@@ -177,8 +152,7 @@ def run_notifications(session: Session, now: datetime | None = None) -> dict[str
         tally[action] = tally.get(action, 0) + 1
 
         if action == "failed":
-            # Not lost any more -- run_for_website parked the changes and they
-            # will go out on a later retry.
+            # Parked by run_for_website, so they go out on a later retry.
             log.error("notification send failed for %s, %d change(s) parked", website.url, len(changes))
         else:
             log.info("notification run for %s: %s (%d change(s))", website.url, action, len(changes))
@@ -189,12 +163,8 @@ def run_notifications(session: Session, now: datetime | None = None) -> dict[str
 async def check_notifications() -> None:
     """One notification run, off the event loop.
 
-    notify() blocks: smtplib waits up to 30s on an unresponsive server, and the
-    database calls are synchronous too. Running that inline would freeze the
-    whole loop, including the scrape loop once it is added.
-
-    dry_run is left to the DRY_RUN setting rather than hardcoded, so this
-    prints on a fresh checkout and only mails anyone once .env says to.
+    smtplib waits up to 30s on a dead server and the database calls are
+    synchronous, so running this inline would freeze every other task.
     """
 
     def _work() -> dict[str, int]:
@@ -214,9 +184,8 @@ async def check_notifications() -> None:
         log.info("notification pass complete: %s", tally)
 
 
-# TODO (scraper): add the scrape loop here once the web scraper is implemented.
-# It goes alongside the notification schedule under asyncio.gather(), which is
-# why the blocking send in check_notifications() had to move off the event loop:
+# TODO (scraper): add the scrape loop here once the scraper exists. It goes
+# alongside the notification schedule under asyncio.gather():
 #
 #     await asyncio.gather(
 #         run_daily_at(...),

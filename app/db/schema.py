@@ -27,16 +27,11 @@ class DBCriticalPage(Base):
 
 
 class DBNotificationState(Base):
-    """What the notifier needs remembered between runs, for one website.
+    """What the notifier needs remembered between runs, one row per website.
 
-    The notifier is deliberately stateless -- it is handed `last_email_at` and
-    never looks it up -- so this is where that one fact lives. One row per
-    website, because each site gets its own report and its own weekly window.
-
-    `last_run_at` is separate from `last_email_at` on purpose: a run that finds
-    nothing still counts as a run (so a restart part-way through the day does
-    not trigger a second check), but it does not reset the weekly all-clear
-    window.
+    `last_run_at` is separate from `last_email_at`: a quiet run still counts as
+    a run, so a restart doesn't trigger a second check, but it must not reset
+    the weekly all-clear window.
     """
 
     __tablename__ = "notification_states"
@@ -54,15 +49,10 @@ class DBNotificationState(Base):
 class DBPendingNotification(Base):
     """A report whose send failed, parked so it can be retried.
 
-    Without this a dead mail server costs a whole day of changes: the diff
-    finder has already moved its snapshot on, so tomorrow's run will not see
-    them again and nobody is told. The changes are stored as the notifier's own
-    serialised Change dicts, so a retry sends exactly what the original run
-    would have.
-
-    `attempts` and `next_attempt_at` drive an exponential backoff, so a mail
-    server that is down for hours is not hammered, and a permanently broken one
-    is eventually given up on loudly rather than retried forever in silence.
+    Without this a dead mail server costs a day of changes: the diff finder has
+    already moved its snapshot on. Stored as serialised Change dicts, so a retry
+    sends what the original run would have. `attempts` and `next_attempt_at`
+    drive the backoff.
     """
 
     __tablename__ = "pending_notifications"
