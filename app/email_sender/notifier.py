@@ -17,7 +17,13 @@ Everything here is a plain function of its arguments. send_message() is the
 only part that touches the network, so the wording can be tested without a mail
 server, and a mail server being down can't affect anything upstream.
 
-Run `python demo.py` to see it work without a scraper or a mail server.
+Anything that has to be remembered between runs -- when we last emailed, and
+any report whose send failed -- lives in app/services/notification_service.py.
+Keeping it out of here is what lets a report be rendered and checked without a
+database, and what stops a dead mail server costing a day's changes.
+
+Run `python -m app.email_sender.demo` to see it work without a scraper or a
+mail server.
 
 TODOs are marked below - see README
 """
@@ -27,79 +33,39 @@ from __future__ import annotations
 import difflib
 import re
 import smtplib
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid, parseaddr
 from html import escape, unescape
-from os import environ
-from pathlib import Path
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.core.config import config
+
 # settings
-# All from the environment, so no passwords in git. Copy .env.example to .env
-# (see README). Defaults are example.com so the demo works with no setup.
+# All from the shared Config in app/core/config.py, which reads the environment
+# and .env for the whole project -- so there are no passwords in git and no
+# second .env loader competing with the one the rest of the app uses. Copy
+# .env.example to .env (see README). Defaults are example.com placeholders so
+# the demo works with no setup.
+#
+# These stay module level constants rather than reads of `config` so a caller
+# can still override one for a single run, and so the demo can be pointed at a
+# different site without touching .env.
 
-
-def _find_dotenv() -> Path | None:
-    """Walk up from this file looking for the repo's .env. None if there isn't one.
-
-    Walks up rather than using the working directory so it's found whether you
-    run from the repo root or from inside src/email_sender.
-    """
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / ".env"
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def _load_dotenv(env_file: Path | None = None) -> None:
-    """Read the repo's .env into the environment, if there is one.
-
-    Called on import, before the settings below are read. Without it the daily
-    job would start with nothing exported and quietly mail the example.com
-    defaults -- you only find out when the client never gets a report.
-
-    Anything already exported wins, so `SITE_NAME=x python3 demo.py` still
-    overrides the file. Hand rolled rather than python-dotenv on purpose:
-    keeping this module free of third party imports is what lets demo.py run
-    on a bare python with nothing installed.
-    """
-    env_file = env_file or _find_dotenv()
-    if env_file is None or not env_file.is_file():
-        return
-
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        environ.setdefault(key.strip(), value.strip().strip("\"'"))
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = environ.get(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in ("1", "true", "yes", "on")
-
-
-_load_dotenv()
-
-SITE_NAME = environ.get("SITE_NAME", "example.edu.au")
-CLIENT_TO = [a.strip() for a in environ.get("CLIENT_TO", "client@example.com").split(",") if a.strip()]
-FROM_ADDR = environ.get("FROM_ADDR", "sitewatch@example.com")
+SITE_NAME = config.site_name
+CLIENT_TO = config.client_to_addresses
+FROM_ADDR = config.from_addr
 
 # Real sending is opt in. A run with no .env, or a fresh checkout, prints its
 # emails instead of mailing whatever CLIENT_TO happens to default to.
-DRY_RUN = _env_bool("DRY_RUN", True)
+DRY_RUN = config.dry_run
 
 # Times in the report are shown in the client's timezone, not UTC. The daily
 # run happening at 06:00 UTC is 14:00 in Perth, and a report headed "checked
 # 06:00" when the client reads it over lunch invites a support email.
-REPORT_TIMEZONE = environ.get("REPORT_TIMEZONE", "Australia/Perth")
+REPORT_TIMEZONE = config.report_timezone
 
 try:
     _REPORT_TZ = ZoneInfo(REPORT_TIMEZONE)
@@ -107,6 +73,15 @@ except (ZoneInfoNotFoundError, ValueError):
     # A typo in .env shouldn't stop the client's report going out.
     print(f"  unknown REPORT_TIMEZONE {REPORT_TIMEZONE!r}, falling back to UTC")
     _REPORT_TZ = UTC
+
+
+def report_tz() -> ZoneInfo:
+    """The timezone reports are written for, with the UTC fallback applied.
+
+    Public so the scheduler can express the daily run time in the same zone the
+    client reads timestamps in, without duplicating the fallback.
+    """
+    return _REPORT_TZ
 
 
 def _local(when: datetime) -> datetime:
@@ -123,11 +98,12 @@ HEARTBEAT_DAYS = 7
 HEARTBEAT_SLACK_HOURS = 12
 HEARTBEAT_DUE = timedelta(days=HEARTBEAT_DAYS, hours=-HEARTBEAT_SLACK_HOURS)
 
-SMTP_HOST = environ.get("SMTP_HOST", "smtp.example.com")
-SMTP_PORT = int(environ.get("SMTP_PORT", "587"))
-# EMAIL / EMAIL_PASSWORD are the names already used in .env.example.
-SMTP_USER = environ.get("EMAIL", "")
-SMTP_PASS = environ.get("EMAIL_PASSWORD", "")
+SMTP_HOST = config.smtp_host
+SMTP_PORT = config.smtp_port
+# EMAIL / EMAIL_PASSWORD are the names already used in .env.example, and the
+# same two fields the rest of the app reads off Config.
+SMTP_USER = config.email
+SMTP_PASS = config.email_password.get_secret_value()
 
 
 # what the diff finder hands over
@@ -200,6 +176,25 @@ class Change:
     def has_diff(self) -> bool:
         """Whether there's enough here to show a before/after comparison."""
         return self.old_text is not None and self.new_text is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        """A plain dict, for parking this change when a send fails.
+
+        Serialisation, not state -- the notifier still remembers nothing. The
+        scheduler is the one that stores the result and hands it back.
+        """
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Change:
+        """Rebuild a Change parked by to_dict().
+
+        Unknown keys are dropped rather than raising: a parked change written
+        by an older version of this file should still be sendable after a
+        deploy, otherwise an upgrade silently strands the retry queue.
+        """
+        fields = {"type", "url", "label", "old_text", "new_text"}
+        return cls(**{key: value for key, value in data.items() if key in fields})
 
 
 #  working out what changed inside a page
@@ -299,8 +294,9 @@ def diff_rows(old_text: str, new_text: str, context: int = DIFF_CONTEXT_LINES) -
 
 
 #  writing the email
-# TODO: plain text only for now. HTML would look nicer, but we keep the plain
-# text part regardless -- some corporate mail clients mangle HTML-only email.
+# Reports go out multipart: an HTML part and a plain text part carrying the
+# same information. The text part is never dropped -- some corporate mail
+# clients mangle HTML-only email.
 
 
 def _unified_lines(change: Change) -> list[str]:
@@ -330,21 +326,27 @@ def _strip_tags(html_fragment: str) -> str:
     return unescape(text)
 
 
-def render_digest(changes: list[Change], now: datetime) -> tuple[str, str]:
+def render_digest(changes: list[Change], now: datetime, site_name: str | None = None) -> tuple[str, str]:
     """Build (subject, body) for the "what changed" email.
 
     Buckets the changes by type and prints them in SECTIONS order, skipping
     empty ones.
 
+    `site_name` names the site this report is about. The database models many
+    websites, and one report per site reads far better than a single digest
+    that mixes them, so the caller says which one rather than every report
+    being stamped with a single global. Defaults to SITE_NAME.
+
     No db and no network, so call it directly when you're fiddling with wording.
     """
+    site_name = site_name or SITE_NAME
     n = len(changes)
     noun = "change" if n == 1 else "changes"
     local = _local(now)
-    subject = f"[{SITE_NAME}] {n} {noun} detected - {local:%d %b %Y}"
+    subject = f"[{site_name}] {n} {noun} detected - {local:%d %b %Y}"
 
     lines = [
-        f"Website monitoring report for {SITE_NAME}",
+        f"Website monitoring report for {site_name}",
         f"Checked {local:%d %b %Y, %H:%M %Z}",
         "",
         f"{n} {noun} detected since the last report.",
@@ -425,18 +427,19 @@ def _diff_table(change: Change) -> str:
     )
 
 
-def render_digest_html(changes: list[Change], now: datetime) -> str:
+def render_digest_html(changes: list[Change], now: datetime, site_name: str | None = None) -> str:
     """The HTML half of the digest -- same content as the plain text, plus diffs.
 
     Sent alongside render_digest()'s text, never instead of it. Mail clients
     that refuse HTML still get a readable report.
     """
+    site_name = site_name or SITE_NAME
     n = len(changes)
     noun = "change" if n == 1 else "changes"
 
     out = [
         '<div style="font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#1f2328;max-width:900px">',
-        f'<h2 style="margin:0 0 4px;font-size:18px">Website monitoring report for {escape(SITE_NAME)}</h2>',
+        f'<h2 style="margin:0 0 4px;font-size:18px">Website monitoring report for {escape(site_name)}</h2>',
         f'<p style="margin:0 0 16px;color:#57606a;font-size:13px">'
         f"Checked {_local(now):%d %b %Y, %H:%M %Z} &middot; "
         f"{n} {noun} detected since the last report.</p>",
@@ -466,18 +469,19 @@ def render_digest_html(changes: list[Change], now: datetime) -> str:
     return "".join(out)
 
 
-def render_all_clear(now: datetime, since: datetime) -> tuple[str, str]:
+def render_all_clear(now: datetime, since: datetime, site_name: str | None = None) -> tuple[str, str]:
     """Build (subject, body) for the weekly "nothing changed" note.
 
     `since` is when we last emailed, so the body can name the window. Point of
     this one: silence shouldn't look the same as a broken scraper.
     """
+    site_name = site_name or SITE_NAME
     local = _local(now)
     since_local = _local(since)
-    subject = f"[{SITE_NAME}] No changes detected - week to {local:%d %b %Y}"
+    subject = f"[{site_name}] No changes detected - week to {local:%d %b %Y}"
     body = "\n".join(
         [
-            f"Website monitoring report for {SITE_NAME}",
+            f"Website monitoring report for {site_name}",
             f"Checked {local:%d %b %Y, %H:%M %Z}",
             "",
             f"No changes detected between {since_local:%d %b %Y} and {local:%d %b %Y}.",
@@ -502,6 +506,7 @@ def build_message(
     body: str,
     html_body: str | None = None,
     now: datetime | None = None,
+    recipients: list[str] | None = None,
 ) -> EmailMessage:
     """Wrap finished text in an email envelope. No sending.
 
@@ -510,6 +515,10 @@ def build_message(
     The text part is never dropped -- some corporate mail clients make a mess
     of HTML-only email, and the client's might be one of them.
 
+    `recipients` defaults to CLIENT_TO. It is a parameter so that different
+    sites can eventually go to different people without this module growing a
+    lookup of its own.
+
     The Auto-Submitted header tells other mail systems we're a bot, so we don't
     get out-of-office replies bouncing back.
     """
@@ -517,7 +526,7 @@ def build_message(
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = FROM_ADDR
-    msg["To"] = ", ".join(CLIENT_TO)
+    msg["To"] = ", ".join(recipients or CLIENT_TO)
     msg["Auto-Submitted"] = "auto-generated"
     # Date and Message-ID are not optional. RFC 5322 requires Date, and spam
     # filters treat a missing Message-ID as a strong signal of a bulk sender --
@@ -542,13 +551,9 @@ def send_message(msg: EmailMessage, dry_run: bool | None = None) -> bool:
     reaches a real inbox until someone sets DRY_RUN=false in .env.
 
     Returns False rather than raising: a mail server having a bad morning
-    shouldn't take the whole daily run down with it.
-
-    TODO: no retries. The notifier no longer keeps an outbox, so a failure here
-    means that day's changes are gone -- the diff finder has already moved its
-    snapshot on, and tomorrow's run won't see them again. Whoever drives this
-    needs to hold the changes until send_message() confirms, or park failures
-    somewhere they can be retried. See README.
+    shouldn't take the whole daily run down with it. The caller decides what a
+    failure costs -- app/services/notification_service.py parks the changes and
+    retries them with a backoff, so a dead mail server no longer loses a day.
     """
     if DRY_RUN if dry_run is None else dry_run:
         print("=" * 60)
@@ -572,6 +577,8 @@ def notify(
     now: datetime | None = None,
     last_email_at: datetime | None = None,
     dry_run: bool | None = None,
+    site_name: str | None = None,
+    recipients: list[str] | None = None,
 ) -> str:
     """Package a run's changes into an email and send it. The way in.
 
@@ -587,21 +594,26 @@ def notify(
     finder has nothing to compare against, so it reports no changes and this
     stays quiet on its own.
 
+    `site_name` and `recipients` say which site this report covers and who it
+    goes to, both defaulting to the configured single-site values. They are
+    arguments for the same reason `last_email_at` is: the database models many
+    websites, and the notifier has no business looking any of that up.
+
     Pass `now` to fake the clock in tests. `dry_run` left as None follows the
     DRY_RUN setting; pass True or False to override it for one call.
     """
     now = now or datetime.now(UTC)
 
     if changes:
-        subject, body = render_digest(changes, now)
-        html_body = render_digest_html(changes, now)
+        subject, body = render_digest(changes, now, site_name)
+        html_body = render_digest_html(changes, now, site_name)
         action = "digest"
     elif last_email_at is not None and now - last_email_at >= HEARTBEAT_DUE:
-        subject, body = render_all_clear(now, last_email_at)
+        subject, body = render_all_clear(now, last_email_at, site_name)
         html_body = None
         action = "all_clear"
     else:
         return "nothing"
 
-    message = build_message(subject, body, html_body, now=now)
+    message = build_message(subject, body, html_body, now=now, recipients=recipients)
     return action if send_message(message, dry_run=dry_run) else "failed"

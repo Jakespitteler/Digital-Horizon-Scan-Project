@@ -1,4 +1,4 @@
-"""Simulate three weeks of daily runs: python demo.py
+"""Simulate three weeks of daily runs.
 
 No scraper, no diff finder and no mail server -- emails are printed, not sent.
 
@@ -6,12 +6,12 @@ Doubles as a worked example of what has to sit around the notifier: the
 notifier is handed a list of changes and told when we last emailed, so this
 file plays the part of the caller and remembers `last_email_at` between runs.
 
-to test cd into this src/email_sender directory and run python3 demo.py
+Run it from the repo root:  python -m app.email_sender.demo
 """
 
 from datetime import UTC, datetime, timedelta
 
-import notifier
+from app.email_sender import notifier
 
 # What the diff finder "reports" on each day of the simulation.
 # Day 1 is the first ever run: there is no previous snapshot to compare
@@ -58,3 +58,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
