@@ -3,7 +3,7 @@ half-configured .env and a real email going to the client by accident."""
 
 import pytest
 
-from email_sender import notifier, send_test
+from app.email_sender import notifier, send_test
 
 
 @pytest.fixture

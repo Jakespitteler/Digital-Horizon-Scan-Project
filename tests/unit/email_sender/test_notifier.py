@@ -3,8 +3,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from email_sender import notifier
-from email_sender.notifier import Change, diff_rows
+from app.core.config import Config, config
+from app.email_sender import notifier
+from app.email_sender.notifier import Change, diff_rows
 
 NOW = datetime(2026, 8, 5, 6, 0, tzinfo=UTC)
 
@@ -144,45 +145,52 @@ def test_dry_run_does_not_open_an_smtp_connection(monkeypatch):
 
 #  settings
 
-def test_env_bool_reads_the_usual_spellings(monkeypatch):
+# Settings come from the project-wide Config in app/core/config.py now, rather
+# than a second .env loader living in the notifier. These check the notifier
+# reads the right fields off it and that the placeholder defaults still hold,
+# since those are what keep a fresh checkout from mailing anyone.
+
+
+def test_dry_run_reads_the_usual_spellings(monkeypatch):
     for raw in ("1", "true", "TRUE", "yes", "on"):
-        monkeypatch.setenv("SOME_FLAG", raw)
-        assert notifier._env_bool("SOME_FLAG", False) is True
-    for raw in ("0", "false", "no", "off", ""):
-        monkeypatch.setenv("SOME_FLAG", raw)
-        assert notifier._env_bool("SOME_FLAG", True) is False
+        monkeypatch.setenv("DRY_RUN", raw)
+        assert Config().dry_run is True
+    for raw in ("0", "false", "no", "off"):
+        monkeypatch.setenv("DRY_RUN", raw)
+        assert Config().dry_run is False
 
 
-def test_env_bool_falls_back_when_unset(monkeypatch):
-    monkeypatch.delenv("SOME_FLAG", raising=False)
-    assert notifier._env_bool("SOME_FLAG", True) is True
-    assert notifier._env_bool("SOME_FLAG", False) is False
+def test_dry_run_defaults_to_on_when_unset(monkeypatch):
+    # A fresh checkout must not be able to mail anyone.
+    monkeypatch.delenv("DRY_RUN", raising=False)
+
+    assert Config().dry_run is True
 
 
-def test_dotenv_is_read_into_the_environment(monkeypatch, tmp_path):
-    monkeypatch.delenv("SITE_NAME", raising=False)
-    env_file = tmp_path / ".env"
-    env_file.write_text('# a comment\n\nSITE_NAME = "uwa.edu.au"\nnot a setting\n')
+def test_settings_are_read_from_the_environment(monkeypatch):
+    monkeypatch.setenv("SITE_NAME", "uwa.edu.au")
 
-    notifier._load_dotenv(env_file)
-
-    assert notifier.environ["SITE_NAME"] == "uwa.edu.au"
+    assert Config().site_name == "uwa.edu.au"
 
 
-def test_exported_variables_beat_the_dotenv_file(monkeypatch, tmp_path):
-    # Otherwise you couldn't override a setting for one run, and CI secrets
-    # would lose to whatever happened to be in a developer's .env.
-    monkeypatch.setenv("SITE_NAME", "exported.edu.au")
-    env_file = tmp_path / ".env"
-    env_file.write_text("SITE_NAME=fromfile.edu.au\n")
-
-    notifier._load_dotenv(env_file)
-
-    assert notifier.environ["SITE_NAME"] == "exported.edu.au"
+def test_the_notifier_reads_its_settings_off_the_shared_config():
+    # One loader, not two: whatever Config resolved is what the notifier sends
+    # with, including the EMAIL / EMAIL_PASSWORD pair the rest of the app uses.
+    assert config.site_name == notifier.SITE_NAME
+    assert config.client_to_addresses == notifier.CLIENT_TO
+    assert config.smtp_host == notifier.SMTP_HOST
+    assert config.email == notifier.SMTP_USER
+    assert config.dry_run == notifier.DRY_RUN
 
 
-def test_a_missing_dotenv_is_not_an_error(tmp_path):
-    notifier._load_dotenv(tmp_path / "nothing-here")
+def test_the_placeholder_defaults_are_harmless(monkeypatch):
+    for name in ("SITE_NAME", "CLIENT_TO", "SMTP_HOST", "FROM_ADDR", "DRY_RUN"):
+        monkeypatch.delenv(name, raising=False)
+    defaults = Config()
+
+    assert defaults.dry_run is True
+    assert "example.com" in defaults.client_to
+    assert "example.com" in defaults.smtp_host
 
 
 #  the DRY_RUN safety catch
