@@ -3,5 +3,15 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "cSpell.words": [
+        "autoflush",
+        "autouse",
+        "getfixturevalue",
+        "ondelete",
+        "onupdate",
+        "poolclass",
+        "selectinload",
+        "sessionmaker"
+    ]
 }
