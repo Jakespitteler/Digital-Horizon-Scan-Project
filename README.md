@@ -9,7 +9,7 @@ diff finder  compares that against the previous run, produces Changes
 notifier     packages those Changes into an email and sends it
 ```
 
-`src/email_sender/notifier.py` is the last stage only. It is handed a list of
+`app/email_sender/notifier.py` is the last stage only. It is handed a list of
 `Change` objects and does not scrape, does not work out what changed, and does
 not read or write a database. What it sends:
 
@@ -30,8 +30,7 @@ caller owns the remembering. Pass `None` and the note simply never fires.
 ### run demo
 
 ```bash
-cd src/email_sender
-python3 demo.py
+uv run python -m app.email_sender.demo
 ```
 
 Simulates three weeks of daily runs, emails are printed rather than sent. It
@@ -91,15 +90,20 @@ in the junk folder looks exactly like a broken scraper.
 ### run the scheduler
 
 ```bash
-python src/scheduler/background_scheduler.py
-# or
-PYTHONPATH=src python -m scheduler.background_scheduler
+uv run python -m app.scheduler.background_scheduler
 ```
 
-`PYTHONPATH=src` is needed because `pyproject.toml` sets `packages = ["src"]`,
-which doesn't make `email_sender` and `scheduler` importable by those names.
-The scheduler works around it for the direct-script case; the proper fix is a
-change to `pyproject.toml`, which is shared with the scraper and database work.
+The notification run happens **once a day at a wall clock time**
+(`DAILY_RUN_HOUR` / `DAILY_RUN_MINUTE`, in `REPORT_TIMEZONE`), not on a
+repeating interval. An interval loop drifts — the wait starts after the task
+finishes, so the true period is the interval plus however long the run took,
+and at daily intervals that walks the client's report later every day.
+Scheduling against the clock has no drift to accumulate.
+
+Restarts are safe. `last_run_at` is stored per website, so a process that comes
+back up at lunchtime does not fire a second report for a day already covered.
+It fires once on startup precisely so a machine booted after the daily slot
+still covers that day.
 
 Ctrl-C stops it. A task that raises is logged and the loop carries on, so one
 bad run doesn't end monitoring.
@@ -119,9 +123,10 @@ Settings come from the environment, so no credentials live in source.
 cp .env.example .env      # then fill it in
 ```
 
-`notifier.py` reads `.env` itself on import, so there is nothing to `source`.
-Anything already exported wins over the file, so you can still override a
-setting for one run (`SITE_NAME=x uv run python src/email_sender/demo.py`).
+`app/core/config.py` reads `.env` for the whole project on import, so there is
+nothing to `source`. Anything already exported wins over the file, so you can
+still override a setting for one run
+(`SITE_NAME=x uv run python -m app.email_sender.demo`).
 `.env` is gitignored — never commit real values.
 
 Everything defaults to `example.com` placeholders, so the demo runs with no
@@ -156,8 +161,7 @@ To send yourself a real sample report with a Gmail account:
 4. Send one sample report:
 
    ```bash
-   cd src/email_sender
-   python3 send_test.py
+   uv run python -m app.email_sender.send_test
    ```
 
 It checks the settings first and tells you exactly what's missing rather than
@@ -171,25 +175,60 @@ ends up using is a question for them.
 **Put `DRY_RUN` back to `true` when you're done testing**, so nobody runs the
 scheduler and mails a real person by accident.
 
+### State: what is remembered between runs
+
+The notifier is stateless on purpose — it is handed a list of changes and told
+when we last emailed, and it looks nothing up. That keeps the wording testable
+without a database and stops a mail server outage reaching back up the
+pipeline. The remembering happens in `app/services/notification_service.py`,
+against two tables:
+
+| table | what it holds |
+| --- | --- |
+| `notification_states` | per website: `last_run_at`, `last_email_at`, `last_action` |
+| `pending_notifications` | reports whose send failed, with an attempt count and a next-attempt time |
+
+`last_run_at` and `last_email_at` are deliberately separate. A run that finds
+nothing still counts as a run — that is what stops a restart firing a second
+report for the same day — but it must not move the email clock, or a site that
+never changes would reset its own weekly window every morning and the all-clear
+would never become due.
+
+**A failed send no longer loses the day's changes.** `notify()` returns
+`"failed"`, the service parks the changes as serialised `Change` dicts, and the
+next run retries them before doing anything else. Retries back off
+exponentially (`RETRY_BASE_DELAY_SECONDS`, capped at `RETRY_MAX_DELAY_SECONDS`)
+and are given up on loudly after `RETRY_MAX_ATTEMPTS` rather than retrying
+forever in silence. A failed *all-clear* is not parked — it carries no changes
+and next week's note says the same thing.
+
+### Many sites
+
+The database models many websites, so each one gets its own report stamped with
+its own URL, and its own weekly all-clear window. `notify()` takes `site_name`
+and `recipients` as arguments for the same reason it takes `last_email_at`: the
+notifier has no business looking any of that up. `SITE_NAME` and `CLIENT_TO` in
+`.env` are the fallbacks used by the demo and the send test.
+
+Per-site recipients are not wired up — every report currently goes to
+`CLIENT_TO`. That needs a client/subscriber table, which is a question for the
+team rather than a code change.
+
 ### TODOs
 
 These are marked in the code as well:
 
-- **A dropped send loses that day's changes.** The notifier used to keep an
-  outbox, so a dead mail server cost nothing — the email went out next run.
-  Now it sends on the spot, and if that fails the diff finder has already moved
-  its snapshot on, so tomorrow's run won't see those changes again and nobody
-  is told. `notify()` returns `"failed"` for exactly this, but nothing acts on
-  it yet. Whoever does persistence has to either hold the changes until the
-  send is confirmed, or park failures somewhere they can be retried — with an
-  attempt counter and a backoff, so it doesn't retry forever in silence.
-- **Nothing remembers `last_email_at` yet.** The scheduler passes `None`, so
-  the weekly all clear never fires in the real pipeline (the demo fakes it).
-  Same owner as the point above.
+- **Diff text from the scraper side.** `Change.old_text`/`new_text` drive the
+  side by side comparison but nothing fills them in yet — see "Email format".
+  `DBCriticalPage.text_body` already stores the previous page text, so the data
+  is there; the diff finder holds both versions at the moment it decides a page
+  changed, so it is the one that has to pass them through.
+- **The diff finder itself.** `collect_changes()` in the scheduler is the seam
+  it plugs into, and returns an empty list today. Until it exists every run is
+  quiet, which is also why a fresh database emails nobody.
 - **Safety net for the site being down.** If most checks failed, "every page
   was deleted" is the wrong thing to email anyone. Needs the scraper to report
   how many checks passed and failed per run.
-- **Diff text from the scraper side.** `Change.old_text`/`new_text` drive the
-  side by side comparison but nothing fills them in yet — see "Email format".
-- **Tests.** The notifier is covered in `tests/email_sender/test_notifier.py`.
-  The scraper and diff finder still need theirs.
+- **Per-site recipients.** See "Many sites" above — needs a team decision.
+- **Tests.** The notifier, the scheduler and the notification service are
+  covered under `tests/unit/`. The scraper and diff finder still need theirs.
