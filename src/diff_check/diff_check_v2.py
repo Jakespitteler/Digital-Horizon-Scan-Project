@@ -64,17 +64,24 @@ def extract_content(html):
         "links": []
     }
 
-    # Headings + Paragraphs
-    # -------------------------
+# Find the main page content
+    main_content = soup.find("main")
+
+    if main_content is None:
+        main_content = soup
+
+    
 
     current_section = "No heading"
 
-    for element in soup.find_all(
-        ["h1", "h2", "h3", "h4", "h5", "h6", "p"]
+    for element in main_content.find_all(
+        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]
     ):
+        # Ignore navigation and sidebar content
+        if element.find_parent(["nav", "aside"]):
+            continue
 
         text = element.get_text(" ", strip=True)
-
         # Clean whitespace
         text = " ".join(text.split())
 
@@ -95,14 +102,50 @@ def extract_content(html):
 
             content["paragraph_details"].append({
                 "section": current_section,
+                "type": "paragraph",
+                "text": text
+            })
+        elif element.name == "li":
+
+            content["paragraph_details"].append({
+                "section": current_section,
+                "type": "list_item",
                 "text": text
             })
 
-    
+    # Capture Last updated date
+    last_updated_heading = main_content.find(
+        lambda tag:
+            tag.name in ["h1", "h2", "h3", "h4", "h5", "h6"]
+            and tag.get_text(" ", strip=True).lower() == "last updated:"
+    )
+
+    if last_updated_heading:
+
+        next_element = last_updated_heading.find_next_sibling()
+
+        if next_element:
+            date_text = next_element.get_text(" ", strip=True)
+        else:
+            date_text = None
+
+        if date_text:
+
+            date_text = " ".join(date_text.split())
+
+            content["paragraph_details"].append({
+                "section": "Last updated:",
+                "type": "last_updated",
+                "text": date_text
+            })
+        
     # Links
     # -------------------------
 
-    for link in soup.find_all("a", href=True):
+    for link in main_content.find_all("a", href=True):
+
+        if link.find_parent(["nav", "aside"]):
+            continue
 
         href = link["href"]
 
@@ -225,12 +268,20 @@ def compare_paragraphs(old_content, new_content):
 
     # Section + paragraph text
     old_items = [
-        (item["section"], item["text"])
+        (
+            item["section"],
+            item.get("type", "paragraph"),
+            item["text"]
+        )
         for item in old_details
     ]
 
     new_items = [
-        (item["section"], item["text"])
+        (
+            item["section"],
+            item.get("type", "paragraph"),
+            item["text"]
+        )
         for item in new_details
     ]
 
@@ -296,6 +347,10 @@ def compare_paragraphs(old_content, new_content):
                 old_section = old_details[i1 + index]["section"]
                 new_section = new_details[j1 + index]["section"]
 
+                # Get the content type for each paragraph
+                old_type = old_details[i1 + index].get("type", "paragraph")
+                new_type = new_details[j1 + index].get("type", "paragraph")
+
                 similarity = SequenceMatcher(
                     None,
                     old_paragraph,
@@ -309,9 +364,15 @@ def compare_paragraphs(old_content, new_content):
                     results["changed"].append({
                         "old_section": old_section,
                         "new_section": new_section,
+
+                        "old_type": old_type,
+                        "new_type": new_type,
+
                         "old": old_paragraph,
                         "new": new_paragraph,
+
                         "similarity": similarity
+                        
                     })
 
                 # Very different → treat as removal + addition
@@ -413,13 +474,15 @@ def main():
         print("\nNo paragraph changes detected.")
 
 
-    # Changed paragraphs
+    
+    # Changed content
     for change in results["changed"]:
 
         print("\n--------------------------")
-        print("CHANGED PARAGRAPH")
+        print("CHANGED CONTENT")
         print("--------------------------")
 
+        # Section
         if change["old_section"] == change["new_section"]:
 
             print("\nSECTION:")
@@ -433,6 +496,21 @@ def main():
             print("\nNEW SECTION:")
             print(change["new_section"])
 
+        # Content type
+        if change["old_type"] == change["new_type"]:
+
+            print("\nTYPE:")
+            print(change["new_type"])
+
+        else:
+
+            print("\nOLD TYPE:")
+            print(change["old_type"])
+
+            print("\nNEW TYPE:")
+            print(change["new_type"])
+
+        # Text
         print("\nOLD:")
         print(change["old"])
 
