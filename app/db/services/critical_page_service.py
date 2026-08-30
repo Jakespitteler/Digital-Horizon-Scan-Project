@@ -5,9 +5,9 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.db import repository
+from app.db.models.critical_page_models import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
 from app.db.schema import DBCriticalPage
-from app.models.critical_page_models import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
-from app.utils.interfaces import CRUDService
+from app.db.utils.interfaces import CRUDService
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -33,7 +33,10 @@ class CriticalPageService(CRUDService[CriticalPageRead, CriticalPageCreate, Crit
             The retrieved critical_pages.
         """
         critical_page_records: Sequence[DBCriticalPage] = repository.get_list(
-            self._db, table=DBCriticalPage, skip=skip, limit=limit
+            self._db,
+            table=DBCriticalPage,
+            skip=skip,
+            limit=limit,
         )
         return [CriticalPageRead.model_validate(critical_page_record) for critical_page_record in critical_page_records]
 

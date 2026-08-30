@@ -4,13 +4,13 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.db.errors import NotFoundError
+from app.db.models.critical_page_models import CriticalPageBase, CriticalPageCreate, CriticalPageRead
+from app.db.models.internal_link_models import InternalLinkCreate, InternalLinkRead
+from app.db.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
 from app.db.schema import DBWebsite
-from app.models.critical_page_models import CriticalPageBase, CriticalPageCreate, CriticalPageRead
-from app.models.internal_link_models import InternalLinkCreate, InternalLinkRead
-from app.models.website_models import WebsiteCreate, WebsiteRead, WebsiteUpdate
-from app.services.critical_page_service import CriticalPageService
-from app.services.internal_link_service import InternalLinkService
-from app.services.website_service import WebsiteService
+from app.db.services.critical_page_service import CriticalPageService
+from app.db.services.internal_link_service import InternalLinkService
+from app.db.services.website_service import WebsiteService
 
 
 def test_get_all_websites(session: Session, test_website: DBWebsite) -> None:

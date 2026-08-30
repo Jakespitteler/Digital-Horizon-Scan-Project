@@ -2,7 +2,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.utils.field_types import URLString
+from app.db.utils.field_types import URLString
 
 
 class CriticalPageBase(BaseModel):
@@ -27,7 +27,6 @@ class CriticalPageRead(BaseModel):
 
 
 class CriticalPageUpdate(BaseModel):
-    url: URLString | None = None
     links: list[URLString] | None = None
     documents: list[URLString] | None = None
     text_body: str | None = None

@@ -4,8 +4,8 @@ from collections.abc import Sequence
 from fastapi import APIRouter, status
 from pydantic import BaseModel
 
-from app.api.dependencies import SessionDep
-from app.utils.interfaces import CRUDService
+from app.db.utils.interfaces import CRUDService
+from app.frontend.api.dependencies import SessionDep
 
 
 def create_crud_router[READ: BaseModel, CREATE: BaseModel, UPDATE: BaseModel](
@@ -14,7 +14,7 @@ def create_crud_router[READ: BaseModel, CREATE: BaseModel, UPDATE: BaseModel](
     create_class: type[CREATE],
     update_class: type[UPDATE],
 ) -> APIRouter:
-    """Generates a standardised CRUD router."""
+    """Generates a standardised CRUD router for Database Operations."""
     router = APIRouter(prefix=prefix, tags=[prefix.split("/")[-1].capitalize()])
 
     @router.get("/", response_model=Sequence[READ], status_code=status.HTTP_200_OK)
