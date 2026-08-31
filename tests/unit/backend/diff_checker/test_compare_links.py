@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.db.services.website_service import WebsiteService
-from src.utils.compare_links import compare_and_update_links
+from app.backend.diff_checker.compare_links import compare_and_update_links
 
 
 def test_stores_new_website_links(session: Session) -> None:
