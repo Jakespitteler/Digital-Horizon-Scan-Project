@@ -1,0 +1,40 @@
+[
+    {
+        "detected_at": "2026-08-24T17:28:06+08:00",
+        "url": "https://www.teqsa.gov.au/how-we-regulate/public-reporting",
+
+        "changed": [
+            {
+                "old_section": "Approach to public reporting",
+                "new_section": "Approach to public reporting",
+                "old": "The information on the National, will add Register identifies whether a decision has resulted in any changes to the information listed.",
+                "new": "The information on the National Register identifies whether a decision has resulted in any changes to the information listed.",
+                "similarity": 0.988
+            }
+        ],
+
+        "added": [
+            {
+                "section": "Purpose of public reports",
+                "text": "This is an example of newly added information."
+            }
+        ],
+
+        "removed": [
+            {
+                "section": "Higher education good practice hub",
+                "text": "This is an example of information that was removed."
+            }
+        ],
+
+        "links_added": [
+            "https://www.teqsa.gov.au/guides-resources/resources/guidance-notes",
+            "https://www.teqsa.gov.au/resources/new-guidance.pdf"
+        ],
+
+        "links_removed": [
+            "https://www.teqsa.gov.au/old-resource",
+            "https://www.teqsa.gov.au/resources/old-policy.pdf"
+        ]
+    }
+]

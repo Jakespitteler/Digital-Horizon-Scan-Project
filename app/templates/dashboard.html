@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Weekly Changes</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', path='dashboard.css') }}"
+    >
+</head>
+
+<body>
+
+    <main class="dashboard-container">
+
+        <h1>Weekly Website Changes</h1>
+
+        <p class="week-range">
+            {{ week_start }} – {{ week_end }}
+        </p>
+
+        {% if records %}
+
+            {% for record in records %}
+
+                <section class="change-record">
+
+                    <p class="page-url">
+                        {{ record.url }}
+                    </p>
+
+                    {% for change in record.changed %}
+
+                        <div class="change-section">
+
+                            <h2>
+                                {{ change.new_section }}
+                            </h2>
+
+                            <table class="comparison-table">
+
+                                <thead>
+                                    <tr>
+                                        <th>Before</th>
+                                        <th>After</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    <tr>
+                                        <td>
+                                            {{ change.old_html | safe }}
+                                        </td>
+
+                                        <td>
+                                            {{ change.new_html | safe }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    {% endfor %}
+
+
+                    {% for item in record.added %}
+
+                        <div class="change-section">
+
+                            <h2>
+                                {{ item.section }}
+                            </h2>
+
+                            <p>
+                                {{ item.text }}
+                                <span class="added-label">
+                                    — Added
+                                </span>
+                            </p>
+
+                        </div>
+
+                    {% endfor %}
+
+
+                    {% for item in record.removed %}
+
+                        <div class="change-section">
+
+                            <h2>
+                                {{ item.section }}
+                            </h2>
+
+                            <p>
+                                {{ item.text }}
+                                <span class="removed-label">
+                                    — Removed
+                                </span>
+                            </p>
+
+                        </div>
+
+                    {% endfor %}
+
+
+                    {% if record.links_added or record.links_removed %}
+
+                        <div class="change-section">
+
+                            <h2>Links and documents</h2>
+
+                            {% for link in record.links_added %}
+
+                                <p>
+                                    <a href="{{ link }}" target="_blank">
+                                        {{ link.split('/')[-1] or link }}
+                                    </a>
+
+                                    <span class="added-label">
+                                        — Added
+                                    </span>
+                                </p>
+
+                            {% endfor %}
+
+
+                            {% for link in record.links_removed %}
+
+                                <p>
+                                    <a href="{{ link }}" target="_blank">
+                                        {{ link.split('/')[-1] or link }}
+                                    </a>
+
+                                    <span class="removed-label">
+                                        — Removed
+                                    </span>
+                                </p>
+
+                            {% endfor %}
+
+                        </div>
+
+                    {% endif %}
+
+                </section>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p>No changes were detected this week.</p>
+
+        {% endif %}
+
+    </main>
+
+</body>
+</html>

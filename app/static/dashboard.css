@@ -1,0 +1,83 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f5f6f8;
+    color: #222;
+}
+
+.dashboard-container {
+    width: 90%;
+    max-width: 1100px;
+    margin: 40px auto;
+}
+
+h1 {
+    margin-bottom: 5px;
+}
+
+.week-range {
+    margin-top: 0;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.change-record {
+    background-color: white;
+    padding: 25px;
+    margin-bottom: 25px;
+    border-radius: 8px;
+}
+
+.page-url {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 25px;
+}
+
+.change-section {
+    margin-bottom: 30px;
+}
+
+.change-section h2 {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 12px;
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.comparison-table th,
+.comparison-table td {
+    width: 50%;
+    border: 1px solid #ddd;
+    padding: 15px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.comparison-table th {
+    background-color: #f0f0f0;
+}
+
+.added-label {
+    font-weight: bold;
+    color: green;
+}
+
+.removed-label {
+    font-weight: bold;
+    color: red;
+}
+
+.removed-word {
+    color: red;
+    font-weight: bold;
+}
+
+.added-word {
+    color: green;
+    font-weight: bold;
+}
