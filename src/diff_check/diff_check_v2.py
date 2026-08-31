@@ -416,7 +416,7 @@ def compare_paragraphs(old_content, new_content):
 
 
 # =========================================================
-# 4. TEST
+# 4. TEST 
 # =========================================================
 
 URL = "https://www.teqsa.gov.au/how-we-regulate/public-reporting"
@@ -427,15 +427,17 @@ CHANGE_HISTORY_FILE = Path(__file__).parent / "change_history.json"
 
 
 
-def main():
+def diff_check(url):
 
     print("Scraping website...")
 
-    html = get_html(URL)
+    html = get_html(url)
 
     new_content = extract_content(html)
 
     old_snapshot = load_snapshot()
+
+    # rest of your code...
 
 
     # First ever run
@@ -574,4 +576,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    test_url = "https://www.teqsa.gov.au/how-we-regulate/public-reporting"
+
+    diff_check(test_url)
