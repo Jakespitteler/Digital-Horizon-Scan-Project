@@ -3,13 +3,14 @@ from collections.abc import Sequence
 from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from httpx2 import AsyncClient
 
 from app.db.errors import NotFoundError
 from app.db.models import critical_page_models, internal_link_models, website_models
 from app.db.services import critical_page_service, internal_link_service, website_service
 from app.frontend.api.crud_router_factory import create_crud_router
 from app.frontend.api.dependencies import SessionDep
-from app.scanner import run_website_scanner
+from app.scanner import run_website_scanner, scan_critical_page, scan_website
 
 templates = Jinja2Templates(directory="app/frontend/templates")
 
@@ -55,7 +56,17 @@ async def run_scanner_on_website(
         website: website_models.WebsiteRead = website_service.WebsiteService(session).create(
             model_create=website_models.WebsiteCreate(url=url)
         )
-    result_text: str = await run_website_scanner(session, website, recipient_email, max_pages, delay, concurrent)
+
+    async with AsyncClient() as client:
+        result_text: str = await run_website_scanner(
+            client,
+            session,
+            website,
+            recipient_email,
+            max_pages,
+            delay,
+            concurrent,
+        )
 
     context: dict[str, str] = {"result": result_text}
     # TODO Result is not displayed
@@ -69,10 +80,11 @@ async def run_scanner(
     recipient_email: str = Form(...),
 ):
     """Triggers the app from the UI form submission."""
-    result_text: list[str] = [
-        await run_website_scanner(session, website=website, recipient_email=recipient_email)
-        for website in website_service.WebsiteService(session).get_all()
-    ]
+    async with AsyncClient() as client:
+        result_text: list[str] = [
+            await run_website_scanner(client, session, website=website, recipient_email=recipient_email)
+            for website in website_service.WebsiteService(session).get_all()
+        ]
     context: dict[str, str | list[str]] = {"result": result_text}
     # TODO Result is not displayed
     return templates.TemplateResponse(request=request, name="index.html", context=context)
@@ -89,12 +101,41 @@ CRITICAL_PAGE_ROUTER: APIRouter = create_crud_router(
     create_class=critical_page_models.CriticalPageCreate,
     update_class=critical_page_models.CriticalPageUpdate,
 )
+
+
+@CRITICAL_PAGE_ROUTER.post("/get_state", response_class=HTMLResponse)
+async def get_critical_page_state(
+    session: SessionDep,
+    url: str = Form(...),
+):
+    stored_page: critical_page_models.CriticalPageRead = critical_page_service.CriticalPageService(session).get_by_url(
+        url=url
+    )
+    async with AsyncClient() as client:
+        return await scan_critical_page(client, stored_page)
+
+
 WEBSITE_ROUTER: APIRouter = create_crud_router(
     prefix="/websites",
     service_class=website_service.WebsiteService,
     create_class=website_models.WebsiteCreate,
     update_class=website_models.WebsiteUpdate,
 )
+
+
+@WEBSITE_ROUTER.post("/get_state", response_class=HTMLResponse)
+async def get_website_state(
+    session: SessionDep,
+    url: str = Form(...),
+    max_pages: int | None = Form(...),
+    delay: float | None = Form(...),
+    concurrent: int | None = Form(...),
+):
+    stored_website: website_models.WebsiteRead = website_service.WebsiteService(session).get_by_url(url=url)
+    async with AsyncClient() as client:
+        return await scan_website(client, stored_website, max_pages, delay, concurrent)
+
+
 INTERNAL_LINK_ROUTER: APIRouter = create_crud_router(
     prefix="/internal_links",
     service_class=internal_link_service.InternalLinkService,

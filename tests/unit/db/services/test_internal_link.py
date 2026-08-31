@@ -58,7 +58,7 @@ def test_get_internal_link_by_url(session: Session, test_internal_link: DBIntern
     assert fetched_internal_link.url == test_internal_link.url
 
 
-def test_get_internal_link_by_url_not_found(session: Session) -> None:
+def test_get_internal_link_by_url_raises_not_found(session: Session) -> None:
     """
     Tests that retrieving a non-existent internal_link by URL raises a NotFoundError.
 

@@ -10,7 +10,7 @@ from app.db.models import critical_page_models, internal_link_models, website_mo
 from app.frontend.api import routers
 
 
-class TestCRUDRouters:
+class TestCRUDRouters[CREATE: BaseModel, UPDATE: BaseModel]:
     """
     Base test suite for standard Router operations.
     Subclasses must define prefix, model_create, model_update, and fixture_name.
@@ -19,8 +19,8 @@ class TestCRUDRouters:
     __test__ = False
 
     prefix: str
-    model_create: BaseModel
-    model_update: BaseModel
+    model_create: CREATE
+    model_update: UPDATE
     fixture_name: str
 
     @pytest.fixture
@@ -137,7 +137,7 @@ class TestCRUDRouters:
 # ==========================
 
 
-class TestWebsiteRouter(TestCRUDRouters):
+class TestWebsiteRouter(TestCRUDRouters[website_models.WebsiteCreate, website_models.WebsiteUpdate]):
     __test__ = True
     prefix = routers.WEBSITE_ROUTER.prefix
     model_create = website_models.WebsiteCreate(
@@ -147,7 +147,9 @@ class TestWebsiteRouter(TestCRUDRouters):
     fixture_name = "test_website"
 
 
-class TestCriticalPageRouter(TestCRUDRouters):
+class TestCriticalPageRouter(
+    TestCRUDRouters[critical_page_models.CriticalPageCreate, critical_page_models.CriticalPageUpdate]
+):
     __test__ = True
     prefix = routers.CRITICAL_PAGE_ROUTER.prefix
     model_create = critical_page_models.CriticalPageCreate(
@@ -160,7 +162,9 @@ class TestCriticalPageRouter(TestCRUDRouters):
     fixture_name = "test_critical_page"
 
 
-class TestInternalLinkRouter(TestCRUDRouters):
+class TestInternalLinkRouter(
+    TestCRUDRouters[internal_link_models.InternalLinkCreate, internal_link_models.InternalLinkUpdate]
+):
     __test__ = True
     prefix = routers.INTERNAL_LINK_ROUTER.prefix
     model_create = internal_link_models.InternalLinkCreate(

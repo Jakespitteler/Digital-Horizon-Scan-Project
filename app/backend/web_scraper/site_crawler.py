@@ -4,18 +4,18 @@ from collections.abc import Awaitable, Iterator
 
 import httpx2
 
-from app.backend.web_scraper.errors import TrafficError, WebConnectionError
-from app.backend.web_scraper.utils import (
-    extract_links,
+from app.backend.utils.html import (
+    extract_links_from_html,
     fetch_content_from_url,
     is_internal_web_page,
     normalise_url,
 )
+from app.backend.web_scraper.errors import TrafficError, WebConnectionError
 
 logger = logging.getLogger(__name__)
 
 
-async def fetch_and_extract(
+async def fetch_internal_links_from_url(
     client: httpx2.AsyncClient,
     url: str,
     semaphore: asyncio.Semaphore,
@@ -52,7 +52,7 @@ async def fetch_and_extract(
             if not is_internal_web_page(base_url, check_url=absolute_url):
                 return url, [], None
 
-            links: list[str] = extract_links(
+            links: list[str] = extract_links_from_html(
                 base_url=base_url,
                 url=absolute_url,
                 html_content=html_content,
@@ -121,7 +121,13 @@ async def crawl_site(
         queue = queue[batch_size:]
 
         tasks: Iterator[Awaitable[tuple[str, list[str], int | None]]] = (
-            fetch_and_extract(client=client, base_url=url, url=current_url, semaphore=semaphore, delay=delay)
+            fetch_internal_links_from_url(
+                client=client,
+                base_url=url,
+                url=current_url,
+                semaphore=semaphore,
+                delay=delay,
+            )
             for current_url in batch
         )
         batch_results: list[tuple[str, list[str], int | None]] = await asyncio.gather(*tasks)

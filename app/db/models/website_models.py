@@ -36,5 +36,5 @@ class WebsiteState(BaseModel):
     url: URLString
 
     critical_page_states: list[CriticalPageState] = Field(default_factory=list[CriticalPageState])
-    new_internal_links: list[str] | None = None
+    added_internal_links: list[str] | None = None
     removed_internal_links: list[str] | None = None

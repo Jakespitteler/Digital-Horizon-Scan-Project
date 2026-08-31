@@ -42,6 +42,35 @@ def test_get_website(session: Session, test_website: DBWebsite) -> None:
     assert fetched_website.url == test_website.url
 
 
+def test_get_website_by_url(session: Session, test_website: DBWebsite) -> None:
+    """
+    Tests retrieving an existing website by its URL.
+
+    Args:
+        session: The database session fixture.
+        test_website: The test website record.
+    """
+    fetched_website: WebsiteRead = WebsiteService(session).get_by_url(url=test_website.url)
+
+    assert fetched_website is not None
+    assert fetched_website.id == test_website.id
+    assert fetched_website.url == test_website.url
+
+
+def test_get_website_by_url_raises_not_found(session: Session) -> None:
+    """
+    Tests retrieving an non existing website by its URL raises an NotFoundError.
+
+    Args:
+        session: The database session fixture.
+        test_website: The test website record.
+    """
+
+    non_existent_url: str = "https://www.non-existent-link.com"
+    with pytest.raises(NotFoundError):
+        WebsiteService(session).get_by_url(url=non_existent_url)
+
+
 def test_create_website(session: Session) -> None:
     """
     Tests creating a new website with basic details.

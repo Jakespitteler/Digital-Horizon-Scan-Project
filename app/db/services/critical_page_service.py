@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.db import repository
+from app.db.errors import NotFoundError
 from app.db.models.critical_page_models import CriticalPageCreate, CriticalPageRead, CriticalPageUpdate
 from app.db.schema import DBCriticalPage
 from app.db.utils.interfaces import CRUDService
@@ -55,6 +56,30 @@ class CriticalPageService(CRUDService[CriticalPageRead, CriticalPageCreate, Crit
         """
         critical_page_record: DBCriticalPage = repository.get(self._db, table=DBCriticalPage, id=id)
         return CriticalPageRead.model_validate(critical_page_record)
+
+    def get_by_url(self, url: str) -> CriticalPageRead:
+        """
+        Retrieves a single critical_page record by its url.
+
+        Args:
+            url: The url of the critical_page to retrieve.
+
+        Raises:
+            NotFoundError: If no critical_page exists with the provided URL.
+
+        Returns:
+            The retrieved critical_page.
+        """
+        critical_page_records: Sequence[DBCriticalPage] = repository.get_list(
+            self._db,
+            table=DBCriticalPage,
+            attributes={"url": url},
+            limit=1,
+        )
+        if not critical_page_records:
+            raise NotFoundError(attributes={"url": url})
+
+        return CriticalPageRead.model_validate(critical_page_records[0])
 
     def create(self, model_create: CriticalPageCreate) -> CriticalPageRead:
         """
