@@ -3,5 +3,23 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "cSpell.words": [
+        "autoflush",
+        "autouse",
+        "dtick",
+        "getfixturevalue",
+        "KHTML",
+        "ondelete",
+        "onupdate",
+        "parametrize",
+        "poolclass",
+        "selectinload",
+        "sessionmaker",
+        "showlegend",
+        "ticktext",
+        "tickvals",
+        "xaxes",
+        "yaxes"
+    ]
 }
