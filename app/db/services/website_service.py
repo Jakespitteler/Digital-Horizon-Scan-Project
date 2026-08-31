@@ -12,6 +12,7 @@ from app.db.schema import DBWebsite
 from app.db.services.critical_page_service import CriticalPageService
 from app.db.services.internal_link_service import InternalLinkService
 from app.db.utils.interfaces import CRUDService
+from app.db.errors import NotFoundError
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -59,6 +60,29 @@ class WebsiteService(CRUDService[WebsiteRead, WebsiteCreate, WebsiteUpdate]):
             relations=[DBWebsite.internal_links, DBWebsite.critical_pages],
         )
         return WebsiteRead.model_validate(website_record)
+
+    def get_by_url(self, url: str) -> WebsiteRead:
+        """
+        Retrieve a website and its relationships by URL.
+
+        Raises:
+            NotFoundError: If no website exists with the URL.
+        """
+        website_records: Sequence[DBWebsite] = repository.get_list(
+            self._db,
+            table=DBWebsite,
+            attributes={"url": url},
+            relations=[
+                DBWebsite.internal_links,
+                DBWebsite.critical_pages,
+            ],
+            limit=1,
+        )
+
+        if not website_records:
+            raise NotFoundError(attributes={"url": url})
+
+        return WebsiteRead.model_validate(website_records[0])
 
     def create(self, model_create: WebsiteCreate) -> WebsiteRead:
         """
